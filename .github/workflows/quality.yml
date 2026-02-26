@@ -9,6 +9,10 @@ on:
 jobs:
   lint-and-coverage:
     runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,4 +30,7 @@ jobs:
         run: npm run lint
 
       - name: Coverage Gate (>=90%)
-        run: npm run test:coverage:check
+        uses: artiomtr/jest-coverage-report-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          test-script: npm run test:coverage:check
