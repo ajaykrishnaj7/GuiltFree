@@ -1,6 +1,30 @@
 # GuiltFree
+
 Log meals like a human, not a data entry clerk. GuiltFree uses AI to turn your '3 slices of pizza and a coke' into precise nutritional data. Total clarity, zero guilt.
 
+## 🚀 Vision
+Most calorie trackers feel like a second job. GuiltFree eliminates the friction of searching through databases and weighing food by using LLMs to infer nutritional value from natural language cues.
+
+## 🚀 Roadmap
+
+- [x] **V1.0: Core AI Logging**
+  - Natural Language Parsing (Gemini 1.5 Flash)
+  - Detailed Nutritional Breakdown (Calories, Macros, Sugars, Fiber)
+  - Supabase Persistence & Authentication
+  - Basic Diary Timeline & Progress Bars
+
+- [ ] **V1.1: The Kitchen & Insights**
+  - **The Kitchen**: Save custom foods and links to a personal nutrition bucket.
+  - **URL Scraper**: Automatically extract nutrition facts from food/recipe links.
+  - **Deep Diary**: Clickable logs to view full ingredient breakdowns.
+  - **Goal Customization**: Optional Fiber and Sugar targets.
+  - **Activity Hub**: Dedicated `/diary` page for historical data.
+
+- [ ] **V1.2: Proactive Health (Future)**
+  - **AI Health Coach**: Personalized tips based on your eating habits.
+  - **Smart Streaks**: Gamification for hitting nutritional goals.
+  - **Intermittent Fasting**: Integrated fasting timer and window tracking.
+  - **Grocery Lists**: Generate shopping lists from your recent meal trends.
 # GuiltFree
 
 Log meals like a human, not a data entry clerk. GuiltFree uses AI to turn your '3 slices of pizza and a coke' into precise nutritional data. Total clarity, zero guilt.
@@ -65,3 +89,30 @@ sequenceDiagram
 - **AI**: Gemini 1.5 Flash (via Google AI SDK).
 - **Backend / DB**: Supabase (Auth, Postgres).
 - **Deployment**: Vercel.
+
+## ⚙️ Setup Notes (New)
+
+### 1. Server-enforced AI goal suggestion limit (5/day)
+- Run the updated SQL in `supabase-schema.sql` to create:
+  - `goal_suggestion_usage`
+- This is now enforced on the backend route (`/api/suggest-goals`) per authenticated user and per day.
+
+### 2. Background push notifications (PWA)
+- Run the updated SQL in `supabase-schema.sql` to create:
+  - `push_subscriptions`
+  - `daily_goal_suggestions`
+- Add environment variables:
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+  - `VAPID_PRIVATE_KEY`
+  - `VAPID_SUBJECT` (example: `mailto:you@yourdomain.com`)
+
+### 3. VAPID key generation example
+Generate once and store securely:
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out vapid_private.pem
+openssl ec -in vapid_private.pem -pubout -out vapid_public.pem
+```
+
+Then convert keys to URL-safe base64 format expected by app env vars.
