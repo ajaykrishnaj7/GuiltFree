@@ -10,5 +10,7 @@ export default function Image() {
     subtitle: "Review your logged meals and macro details over time.",
     accentFrom: "#1f2937",
     accentTo: "#f59e0b",
+    routeBadge: "HISTORY",
+    glyph: "⟲",
   });
 }

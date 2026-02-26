@@ -5,6 +5,8 @@ type SocialImageOptions = {
   subtitle: string;
   accentFrom: string;
   accentTo: string;
+  routeBadge?: string;
+  glyph?: string;
 };
 
 export const createSocialImage = ({
@@ -12,6 +14,8 @@ export const createSocialImage = ({
   subtitle,
   accentFrom,
   accentTo,
+  routeBadge,
+  glyph,
 }: SocialImageOptions) =>
   new ImageResponse(
     (
@@ -22,12 +26,24 @@ export const createSocialImage = ({
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          background: `linear-gradient(135deg, ${accentFrom} 0%, #1f2a63 55%, ${accentTo} 100%)`,
+          background: `linear-gradient(135deg, ${accentFrom} 0%, ${accentTo} 100%)`,
           color: "#ffffff",
           padding: "64px",
           fontFamily: "Inter, system-ui, sans-serif",
         }}
       >
+        <div
+          style={{
+            position: "absolute",
+            right: "72px",
+            top: "62px",
+            fontSize: "64px",
+            opacity: 0.28,
+            fontWeight: 800,
+          }}
+        >
+          {glyph || "GF"}
+        </div>
         <div
           style={{
             width: "86px",
@@ -41,9 +57,10 @@ export const createSocialImage = ({
             fontSize: "52px",
             fontWeight: 800,
             marginBottom: "34px",
+            letterSpacing: "-1px",
           }}
         >
-          G
+          GF
         </div>
         <div style={{ fontSize: "66px", lineHeight: 1.05, fontWeight: 800 }}>
           GuiltFree
@@ -53,6 +70,21 @@ export const createSocialImage = ({
         </div>
         <div style={{ fontSize: "28px", marginTop: "24px", opacity: 0.85 }}>
           {subtitle}
+        </div>
+        <div
+          style={{
+            marginTop: "24px",
+            alignSelf: "flex-start",
+            backgroundColor: "rgba(255,255,255,0.18)",
+            border: "1px solid rgba(255,255,255,0.35)",
+            borderRadius: "999px",
+            padding: "8px 16px",
+            fontSize: "18px",
+            fontWeight: 700,
+            letterSpacing: "0.06em",
+          }}
+        >
+          {routeBadge || "HOME"}
         </div>
       </div>
     ),

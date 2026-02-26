@@ -10,5 +10,7 @@ export default function Image() {
     subtitle: "Store ingredients and nutrition facts for faster meal logging.",
     accentFrom: "#064e3b",
     accentTo: "#10b981",
+    routeBadge: "KITCHEN",
+    glyph: "✦",
   });
 }

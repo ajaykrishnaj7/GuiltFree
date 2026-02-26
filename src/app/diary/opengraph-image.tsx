@@ -10,5 +10,7 @@ export default function Image() {
     subtitle: "Daily timeline of your meals and macro intake.",
     accentFrom: "#111827",
     accentTo: "#22d3ee",
+    routeBadge: "DIARY",
+    glyph: "☰",
   });
 }
