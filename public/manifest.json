@@ -1,0 +1,21 @@
+{
+  "name": "GuiltFree",
+  "short_name": "GuiltFree",
+  "description": "Log meals like a human.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "192x192",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "512x512",
+      "type": "image/x-icon"
+    }
+  ]
+}
