@@ -25,6 +25,12 @@ Most calorie trackers feel like a second job. GuiltFree eliminates the friction 
   - **Smart Streaks**: Gamification for hitting nutritional goals.
   - **Intermittent Fasting**: Integrated fasting timer and window tracking.
   - **Grocery Lists**: Generate shopping lists from your recent meal trends.
+# GuiltFree
+
+Log meals like a human, not a data entry clerk. GuiltFree uses AI to turn your '3 slices of pizza and a coke' into precise nutritional data. Total clarity, zero guilt.
+
+## 🚀 Vision
+Most calorie trackers feel like a second job. GuiltFree eliminates the friction of searching through databases and weighing food by using LLMs to infer nutritional value from natural language cues.
 
 ## 🛠 Features (Detailed)
 
