@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     siteName: "GuiltFree",
     images: [
       {
-        url: "/opengraph-image",
+        url: `${appUrl}/opengraph-image`,
         width: 1200,
         height: 630,
         alt: "GuiltFree - AI Nutrition Tracker",
@@ -31,15 +31,15 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "GuiltFree | AI Nutrition Tracker",
     description: "Log meals like a human. Precise nutritional data through AI.",
-    images: ["/twitter-image"],
+    images: [`${appUrl}/twitter-image`],
   },
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon", sizes: "64x64", type: "image/png" },
     ],
-    shortcut: ["/favicon.ico"],
+    shortcut: ["/icon"],
     apple: [
-      { url: "/favicon.ico", sizes: "180x180" },
+      { url: "/apple-icon", sizes: "64x64", type: "image/png" },
     ],
   },
 };
@@ -63,19 +63,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const showUpdateNotifier = process.env.NODE_ENV === 'production';
-  const ogImageUrl = `${appUrl}/opengraph-image`;
-  const twitterImageUrl = `${appUrl}/twitter-image`;
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <meta property="og:image" content={ogImageUrl} />
-        <meta property="og:image:url" content={ogImageUrl} />
-        <meta property="og:image:secure_url" content={ogImageUrl} />
-        <meta property="og:image:type" content="image/png" />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta name="twitter:image" content={twitterImageUrl} />
-      </head>
       <body className="antialiased min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors duration-300">
         <ThemeProvider
           attribute="class"

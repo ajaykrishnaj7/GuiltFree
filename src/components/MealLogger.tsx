@@ -594,24 +594,37 @@ export default function MealLogger() {
   const [dailyTotals, setDailyTotals] = useState<any>({ calories: 0 });
 
   const fetchDailyTotals = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setDailyTotals({ calories: 0 });
+      return;
+    }
+
+    const selectedDayStart = new Date(`${logDate}T00:00:00`);
+    if (Number.isNaN(selectedDayStart.getTime())) {
+      setDailyTotals({ calories: 0 });
+      return;
+    }
+    const selectedDayEnd = new Date(selectedDayStart);
+    selectedDayEnd.setDate(selectedDayEnd.getDate() + 1);
+
     const { data } = await supabase
       .from('meals')
       .select('total_calories')
       .eq('user_id', user.id)
-      .gte('created_at', new Date().toISOString().split('T')[0]);
+      .gte('created_at', selectedDayStart.toISOString())
+      .lt('created_at', selectedDayEnd.toISOString());
     
     if (data) {
       const total = data.reduce((sum, m) => sum + (m.total_calories || 0), 0);
       setDailyTotals({ calories: total });
+      return;
     }
-  }, [user]);
+    setDailyTotals({ calories: 0 });
+  }, [user, logDate]);
 
   useEffect(() => {
-    if (user) {
-      void fetchDailyTotals();
-    }
-  }, [user, fetchDailyTotals]);
+    void fetchDailyTotals();
+  }, [fetchDailyTotals]);
 
   const [kitchenItems, setKitchenItems] = useState<KitchenItem[]>([]);
   const [suggestions, setSuggestions] = useState<KitchenItem[]>([]);
@@ -844,6 +857,7 @@ export default function MealLogger() {
 
   const mealTotalCals = parsedMeals?.reduce((sum, m) => sum + m.items.reduce((s, i) => s + i.calories, 0), 0) || 0;
   const projectedDailyTotal = dailyTotals.calories + mealTotalCals;
+  const impactDateLabel = new Date(`${logDate}T00:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
 
   return (
     <div className="flex flex-col gap-4 w-full">
@@ -1251,7 +1265,7 @@ export default function MealLogger() {
                   <span>Impact:</span>
                   <span className="text-zinc-400">{dailyTotals.calories}</span>
                   <span className="text-zinc-300">→</span>
-                  <span className="text-indigo-600 dark:text-indigo-400">{projectedDailyTotal} kcal today</span>
+                  <span className="text-indigo-600 dark:text-indigo-400">{projectedDailyTotal} kcal on {impactDateLabel}</span>
                 </div>
               </div>
               <button onClick={clear} className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
