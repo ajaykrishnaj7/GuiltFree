@@ -42,7 +42,7 @@ export default function AuthCallbackPage() {
         </h1>
         
         <p className="text-zinc-500 dark:text-zinc-400 mb-8">
-          Thank you for verifying your email address. You are now successfully signed in.
+          Thank you for verifying your email address.
         </p>
 
         <div className="bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl p-6 mb-8 border border-indigo-100 dark:border-indigo-500/20">
