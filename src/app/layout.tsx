@@ -18,6 +18,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import AppUpdateNotifier from "@/components/AppUpdateNotifier";
 import Navbar from "@/components/Navbar";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export default function RootLayout({
   children,
@@ -44,6 +45,7 @@ export default function RootLayout({
             </div>
           </AuthProvider>
         </ThemeProvider>
+        <SpeedInsights />
       </body>
     </html>
   );
