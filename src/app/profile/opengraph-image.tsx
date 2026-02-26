@@ -10,5 +10,7 @@ export default function Image() {
     subtitle: "Control your account, preferences, and AI provider keys.",
     accentFrom: "#0f172a",
     accentTo: "#a855f7",
+    routeBadge: "PROFILE",
+    glyph: "◉",
   });
 }

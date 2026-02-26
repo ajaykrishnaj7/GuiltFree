@@ -8,7 +8,9 @@ export default function Image() {
   return createSocialImage({
     title: "Goals",
     subtitle: "Tune your daily targets for calories and macros.",
-    accentFrom: "#1e1b4b",
-    accentTo: "#6366f1",
+    accentFrom: "#064e3b",
+    accentTo: "#10b981",
+    routeBadge: "GOALS",
+    glyph: "◎",
   });
 }

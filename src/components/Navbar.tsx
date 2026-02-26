@@ -34,7 +34,7 @@ export default function Navbar() {
         <div className="flex-1 flex items-center">
           <Link href="/" className="flex items-center gap-2 group shrink-0">
             <div className="w-8 h-8 bg-zinc-950 dark:bg-white rounded-lg flex items-center justify-center shadow-2xl group-hover:scale-110 transition-transform">
-              <span className="text-white dark:text-zinc-950 font-black text-lg">G</span>
+              <span className="text-white dark:text-zinc-950 font-black text-sm">GF</span>
             </div>
             <span className="text-xl font-black tracking-tighter">GuiltFree</span>
           </Link>

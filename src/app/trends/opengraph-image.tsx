@@ -8,7 +8,9 @@ export default function Image() {
   return createSocialImage({
     title: "Trends & Analytics",
     subtitle: "Track goal reach, weekly averages, and consistency.",
-    accentFrom: "#0f172a",
-    accentTo: "#4f46e5",
+    accentFrom: "#4a044e",
+    accentTo: "#d946ef",
+    routeBadge: "TRENDS",
+    glyph: "↗",
   });
 }
