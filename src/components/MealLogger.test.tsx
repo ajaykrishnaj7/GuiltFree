@@ -33,7 +33,9 @@ jest.mock('@/lib/supabase', () => ({
           insert: (...args: any[]) => mockMealsInsert(...args),
           select: () => ({
             eq: () => ({
-              gte: () => Promise.resolve({ data: [{ total_calories: 500 }] }),
+              gte: () => ({
+                lt: () => Promise.resolve({ data: [{ total_calories: 500 }] }),
+              }),
             }),
           }),
         };
