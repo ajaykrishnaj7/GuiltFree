@@ -1,8 +1,5 @@
 import type { NextConfig } from "next";
 import { networkInterfaces } from "node:os";
-import { fileURLToPath } from "node:url";
-
-const projectRoot = fileURLToPath(new URL(".", import.meta.url));
 const devPort = process.env.PORT || '3000';
 
 const getDynamicDevOrigins = () => {
@@ -32,7 +29,7 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   allowedDevOrigins: getDynamicDevOrigins(),
   turbopack: {
-    root: projectRoot,
+    root: process.cwd(),
   },
 };
 
