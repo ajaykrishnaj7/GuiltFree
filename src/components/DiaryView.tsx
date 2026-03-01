@@ -196,7 +196,7 @@ export default function DiaryView() {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, pageSize, filterFrom, filterTo, user]);
+  }, [currentPage, pageSize, filterFrom, filterTo, user?.id]);
 
   useEffect(() => {
     if (user) {
@@ -207,7 +207,7 @@ export default function DiaryView() {
     } else if (!authLoading) {
       setLoading(false);
     }
-  }, [user, authLoading, fetchData]);
+  }, [user?.id, authLoading, fetchData]);
 
   useEffect(() => {
     return () => {

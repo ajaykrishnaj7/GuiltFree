@@ -74,7 +74,7 @@ interface EditMealModalProps {
 }
 
 export default function EditMealModal({ meal, items: initialItems, onClose, onSave }: EditMealModalProps) {
-  const draftHydratedRef = useRef(false);
+
   const [name, setName] = useState(meal.name);
   const [type, setType] = useState(meal.type);
   const [description, setDescription] = useState(meal.description || '');
@@ -94,8 +94,6 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
   const [items, setItems] = useState<MealItem[]>(() => initialItems.map(withBase));
   const [kitchenItems, setKitchenItems] = useState<KitchenItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const draftStorageKey = `guiltfree.edit-meal-draft.${meal.id}`;
-
   const getKitchenBreakdown = (item: MealItem) => {
     if (!item.rationale) return null;
     const marker = 'Built from kitchen items:';
@@ -105,36 +103,6 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
   };
 
   useEffect(() => {
-    draftHydratedRef.current = false;
-  }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || draftHydratedRef.current) return;
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as {
-        name?: string;
-        type?: string;
-        description?: string;
-        editDate?: string;
-        editTime?: string;
-        items?: MealItem[];
-      };
-      if (typeof parsed.name === 'string') setName(parsed.name);
-      if (typeof parsed.type === 'string') setType(parsed.type);
-      if (typeof parsed.description === 'string') setDescription(parsed.description);
-      if (typeof parsed.editDate === 'string') setEditDate(parsed.editDate);
-      if (typeof parsed.editTime === 'string') setEditTime(parsed.editTime);
-      if (Array.isArray(parsed.items) && parsed.items.length > 0) setItems(parsed.items.map(withBase));
-      draftHydratedRef.current = true;
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (draftHydratedRef.current) return;
     setItems(initialItems.map(withBase));
   }, [initialItems]);
 
@@ -148,11 +116,7 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
     void fetchKitchenItems();
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const payload = { name, type, description, editDate, editTime, items };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-  }, [draftStorageKey, name, type, description, editDate, editTime, items]);
+
 
   const handleUpdateItem = (index: number, field: keyof MealItem, value: any) => {
     const newItems = [...items];
@@ -551,9 +515,7 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
 
       if (insertError) throw insertError;
 
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(draftStorageKey);
-      }
+
       onSave();
       onClose();
     } catch (err: any) {

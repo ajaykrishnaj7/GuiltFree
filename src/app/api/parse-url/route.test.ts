@@ -24,6 +24,7 @@ jest.mock('cheerio', () => {
     }
     return {
       remove: () => undefined,
+      append: () => undefined,
       each: (cb: (index: number, element: any) => void) => {
         if (selector === 'img') cb(0, {});
       },
@@ -41,6 +42,7 @@ describe('POST /api/parse-url', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       text: () => Promise.resolve('<html><body>test</body></html>'),
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
       headers: { get: () => 'text/html' },
     } as any);
   });
@@ -80,6 +82,7 @@ describe('POST /api/parse-url', () => {
         headers: { get: () => 'text/html' },
       } as any)
       .mockResolvedValueOnce({
+        ok: true,
         arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
         headers: { get: () => 'image/jpeg' },
       } as any);

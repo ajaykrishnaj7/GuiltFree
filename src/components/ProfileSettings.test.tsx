@@ -111,30 +111,4 @@ describe('ProfileSettings', () => {
     expect(screen.getByText('Sugars (g)')).toBeInTheDocument();
   });
 
-  it('restores unsaved draft values from localStorage', async () => {
-    window.localStorage.setItem('guiltfree.profile-goals-draft.user-1', JSON.stringify({
-      goals: {
-        daily_calorie_goal: 1999,
-        daily_protein_goal_g: 140,
-        daily_carbs_goal_g: 210,
-        daily_fats_goal_g: 60,
-        daily_fiber_goal_g: 28,
-        daily_sugars_total_goal_g: 44,
-        goal_focus: 'fat_loss_general',
-      },
-      goalSuggestionForm: {
-        age: '30',
-        heightCm: '',
-        weightKg: '',
-        country: '',
-        sex: '',
-        activityLevel: 'moderate',
-        goalIntent: 'maintain_weight',
-        mealsPerDay: '3',
-      },
-    }));
-
-    render(<ProfileSettings isOpen={true} onClose={mockOnClose} />);
-    expect(await screen.findByDisplayValue('1999')).toBeInTheDocument();
-  });
 });

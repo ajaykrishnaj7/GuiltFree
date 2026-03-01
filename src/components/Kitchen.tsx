@@ -29,7 +29,7 @@ interface KitchenProps {
 
 export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProps) {
   const { user } = useAuth();
-  const draftHydratedRef = useRef(false);
+
   const [items, setItems] = useState<KitchenItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isSavingItem, setIsSavingItem] = useState(false);
@@ -57,13 +57,12 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
   const [labelMimeType, setLabelMimeType] = useState<string>('image/jpeg');
   const [isLabelParsing, setIsLabelParsing] = useState(false);
   const [labelPreview, setLabelPreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const pendingSaveAfterAuthRef = useRef(false);
   const saveAfterAuthHandlerRef = useRef<null | (() => Promise<void>)>(null);
-  const draftScope = user?.id || 'anon';
-  const draftStorageKey = `guiltfree.kitchen-draft.${draftScope}`;
-  
+
   const [newItem, setNewItem] = useState<Partial<KitchenItem>>({
     name: '',
     calories: 0,
@@ -76,21 +75,35 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
   });
 
   useEffect(() => {
-    if (user && (isOpen || isPage)) {
+    if (user?.id && (isOpen || isPage)) {
       fetchItems();
     }
-  }, [user, isOpen, isPage]);
+  }, [user?.id, isOpen, isPage]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     setAISettings(loadAISettings(user.id));
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
-    if (!user || !pendingSaveAfterAuthRef.current) return;
+    if (!user?.id || !pendingSaveAfterAuthRef.current) return;
     pendingSaveAfterAuthRef.current = false;
     void saveAfterAuthHandlerRef.current?.();
-  }, [user]);
+  }, [user?.id]);
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (addMode === 'label') {
+        const file = e.clipboardData?.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          e.preventDefault();
+          handleLabelFile(file);
+        }
+      }
+    };
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [addMode]);
 
   const getAIConfigPayload = () => (
     aiSettings.useUserKey
@@ -106,7 +119,6 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
       .order('created_at', { ascending: false });
     
     if (data) setItems(data);
-    setAddMode('manual');
     setLoading(false);
   };
 
@@ -347,93 +359,7 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
     setShowReview(false);
     setLabelImage(null);
     setLabelPreview(null);
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(draftStorageKey);
-    }
   };
-
-  useEffect(() => {
-    draftHydratedRef.current = false;
-  }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || draftHydratedRef.current) return;
-    draftHydratedRef.current = true;
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as {
-        showAdd?: boolean;
-        addMode?: 'manual' | 'url' | 'recipe' | 'label';
-        url?: string;
-        editingId?: string | null;
-        newItem?: Partial<KitchenItem>;
-        recipeIngredients?: { item: KitchenItem; quantity: number }[];
-        recipeInstructions?: string;
-        recipeServings?: number;
-        magicText?: string;
-        showMagicImport?: boolean;
-        estimationResult?: any;
-        showReview?: boolean;
-        labelImage?: string | null;
-        labelMimeType?: string;
-      };
-
-      if (typeof parsed.showAdd === 'boolean') setShowAdd(parsed.showAdd);
-      if (parsed.addMode) setAddMode(parsed.addMode);
-      if (typeof parsed.url === 'string') setUrl(parsed.url);
-      if (typeof parsed.editingId !== 'undefined') setEditingId(parsed.editingId);
-      if (parsed.newItem) setNewItem(parsed.newItem);
-      if (Array.isArray(parsed.recipeIngredients)) setRecipeIngredients(parsed.recipeIngredients);
-      if (typeof parsed.recipeInstructions === 'string') setRecipeInstructions(parsed.recipeInstructions);
-      if (typeof parsed.recipeServings === 'number') setRecipeServings(parsed.recipeServings);
-      if (typeof parsed.magicText === 'string') setMagicText(parsed.magicText);
-      if (typeof parsed.showMagicImport === 'boolean') setShowMagicImport(parsed.showMagicImport);
-      if (typeof parsed.estimationResult !== 'undefined') setEstimationResult(parsed.estimationResult);
-      if (typeof parsed.showReview === 'boolean') setShowReview(parsed.showReview);
-      if (typeof parsed.labelImage !== 'undefined') setLabelImage(parsed.labelImage);
-      if (typeof parsed.labelMimeType === 'string') setLabelMimeType(parsed.labelMimeType);
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !draftHydratedRef.current) return;
-    const payload = {
-      showAdd,
-      addMode,
-      url,
-      editingId,
-      newItem,
-      recipeIngredients,
-      recipeInstructions,
-      recipeServings,
-      magicText,
-      showMagicImport,
-      estimationResult,
-      showReview,
-      labelImage,
-      labelMimeType,
-    };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-  }, [
-    draftStorageKey,
-    showAdd,
-    addMode,
-    url,
-    editingId,
-    newItem,
-    recipeIngredients,
-    recipeInstructions,
-    recipeServings,
-    magicText,
-    showMagicImport,
-    estimationResult,
-    showReview,
-    labelImage,
-    labelMimeType,
-  ]);
 
   const filteredItems = items.filter(item => 
     item.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -489,12 +415,14 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                   >
                     Manual
                   </button>
+                  {/*
                   <button 
                     onClick={() => setAddMode('url')}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${addMode === 'url' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}
                   >
                     URL
                   </button>
+                  */}
                   <button 
                     onClick={() => setAddMode('recipe')}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${addMode === 'recipe' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 shadow-sm' : 'text-zinc-500'}`}
@@ -642,7 +570,7 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                               <input 
                                 type="number" 
                                 className={`w-full px-4 py-3 rounded-xl text-sm font-bold outline-none border transition-all ${macro.color} focus:border-indigo-500`}
-                                value={(newItem[macro.key as keyof KitchenItem] as string | number) || ''}
+                                value={newItem[macro.key as keyof KitchenItem] === 0 ? 0 : (newItem[macro.key as keyof KitchenItem] as string | number) || ''}
                                 onChange={(e) => setNewItem({...newItem, [macro.key]: e.target.value === '' ? '' as any : parseFloat(e.target.value)})}
                                 onBlur={(e) => setNewItem({...newItem, [macro.key]: parseFloat(e.target.value) || 0})}
                               />
@@ -669,7 +597,7 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                     </div>
                   )}
                 </>
-              ) : addMode === 'url' ? (
+              ) : false /* addMode === 'url' */ ? (
                 <div className="space-y-4">
                   <div className="relative">
                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
@@ -718,7 +646,18 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                       onChange={(e) => handleLabelFile(e.target.files?.[0])}
                     />
 
-                    <div className="w-full border-2 border-dashed border-zinc-200 dark:border-zinc-700 rounded-2xl p-8 flex flex-col items-center gap-4">
+                    <div 
+                      className={`w-full border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-4 transition-all ${isDragging ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-900/20 scale-[1.02]' : 'border-zinc-200 dark:border-zinc-700'}`}
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setIsDragging(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && file.type.startsWith('image/')) handleLabelFile(file);
+                      }}
+                    >
                       <Camera className="w-10 h-10 text-zinc-300 dark:text-zinc-600" />
                       <span className="text-sm font-bold text-zinc-400">Add a nutrition label photo</span>
                       <span className="text-[10px] text-zinc-400 uppercase tracking-widest">PNG, JPG, HEIC supported</span>
@@ -741,8 +680,14 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                     </div>
 
                     {labelPreview && (
-                      <div className="w-full rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 relative h-64 bg-zinc-50 dark:bg-zinc-800">
-                        <Image src={labelPreview} alt="Nutrition label preview" fill className="object-contain" />
+                      <div className="w-full rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700 relative h-64 bg-zinc-50 dark:bg-zinc-800 group">
+                        <Image src={labelPreview} alt="Nutrition label preview" fill className="object-contain transition-opacity group-hover:opacity-50" />
+                        <button
+                          onClick={() => { setLabelImage(null); setLabelPreview(null); }}
+                          className="absolute top-4 right-4 p-2 bg-zinc-900/50 hover:bg-rose-500 text-white rounded-xl backdrop-blur-md transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100 flex items-center gap-2 shadow-xl"
+                        >
+                          <X className="w-4 h-4" /> <span className="text-xs font-bold pr-1">Remove</span>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -811,7 +756,7 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                         <input 
                           type="number" 
                           className={`w-full px-4 py-3 rounded-xl text-sm font-bold outline-none border transition-all ${macro.color} focus:border-indigo-500`}
-                          value={(newItem[macro.key as keyof KitchenItem] as string | number) || ''}
+                          value={newItem[macro.key as keyof KitchenItem] === 0 ? 0 : (newItem[macro.key as keyof KitchenItem] as string | number) || ''}
                           onChange={(e) => setNewItem({...newItem, [macro.key]: e.target.value === '' ? '' as any : parseFloat(e.target.value)})}
                           onBlur={(e) => setNewItem({...newItem, [macro.key]: parseFloat(e.target.value) || 0})}
                         />

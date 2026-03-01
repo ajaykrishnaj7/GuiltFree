@@ -41,7 +41,7 @@ const GOAL_FOCUS_OPTIONS = [
 
 export default function ProfileSettings({ isOpen, onClose, isPage = false }: ProfileSettingsProps) {
   const { user } = useAuth();
-  const draftHydratedRef = useRef(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
@@ -65,8 +65,6 @@ export default function ProfileSettings({ isOpen, onClose, isPage = false }: Pro
     daily_sugars_total_goal_g: 50,
     goal_focus: 'maintain_weight',
   });
-  const draftScope = user?.id || 'anon';
-  const draftStorageKey = `guiltfree.profile-goals-draft.${draftScope}`;
 
   const fetchGoalSuggestionUsage = useCallback(async () => {
     if (!user) return;
@@ -95,7 +93,7 @@ export default function ProfileSettings({ isOpen, onClose, isPage = false }: Pro
       .eq('id', user?.id)
       .single();
 
-    if (data && !draftHydratedRef.current) {
+    if (data) {
       setGoals({
         daily_calorie_goal: data.daily_calorie_goal ?? 2000,
         daily_protein_goal_g: data.daily_protein_goal_g ?? 150,
@@ -109,26 +107,7 @@ export default function ProfileSettings({ isOpen, onClose, isPage = false }: Pro
     setLoading(false);
   }, [user]);
 
-  useEffect(() => {
-    draftHydratedRef.current = false;
-  }, [draftStorageKey]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || draftHydratedRef.current) return;
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as {
-        goals?: typeof goals;
-        goalSuggestionForm?: typeof goalSuggestionForm;
-      };
-      if (parsed.goals) setGoals(parsed.goals);
-      if (parsed.goalSuggestionForm) setGoalSuggestionForm(parsed.goalSuggestionForm);
-      draftHydratedRef.current = true;
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey]);
 
   useEffect(() => {
     if (user && (isOpen || isPage)) {
@@ -157,9 +136,7 @@ export default function ProfileSettings({ isOpen, onClose, isPage = false }: Pro
       .eq('id', user?.id);
 
     if (!error) {
-      if (typeof window !== 'undefined') {
-        window.localStorage.removeItem(draftStorageKey);
-      }
+
       alert('Goals updated!');
       if (!isPage) onClose();
     }
@@ -193,13 +170,8 @@ export default function ProfileSettings({ isOpen, onClose, isPage = false }: Pro
       }
     };
     void savePendingGoals();
-  }, [user, goals, draftStorageKey]);
+  }, [user, goals]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const payload = { goals, goalSuggestionForm };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-  }, [draftStorageKey, goals, goalSuggestionForm]);
 
   const handleSuggestGoals = async () => {
     if (!user) {

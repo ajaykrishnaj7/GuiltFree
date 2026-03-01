@@ -36,13 +36,22 @@ const DEFAULT_MODELS: Record<AIProvider, string> = {
 
 const geminiModelCache = new Map<string, string[]>();
 
-const cleanJsonText = (raw: string) =>
-  raw
-    .trim()
+const cleanJsonText = (raw: string) => {
+  const text = raw.trim();
+  const firstBrace = Math.min(
+    text.indexOf('{') === -1 ? Infinity : text.indexOf('{'),
+    text.indexOf('[') === -1 ? Infinity : text.indexOf('[')
+  );
+  const lastBrace = Math.max(text.lastIndexOf('}'), text.lastIndexOf(']'));
+  if (firstBrace !== Infinity && lastBrace !== -1 && lastBrace >= firstBrace) {
+    return text.substring(firstBrace, lastBrace + 1);
+  }
+  return text
     .replace(/^```json/i, '')
     .replace(/^```/, '')
     .replace(/```$/, '')
     .trim();
+};
 
 const getEnvKeyForProvider = (provider: AIProvider) =>
   provider === 'gemini'

@@ -25,7 +25,7 @@ const KEY_PLACEHOLDERS: Record<AIProvider, string> = {
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
-  const draftHydratedRef = useRef(false);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [aiSettingsError, setAISettingsError] = useState<string | null>(null);
@@ -40,8 +40,7 @@ export default function ProfilePage() {
     height: '',
     sex: ''
   });
-  const draftScope = user?.id || 'anon';
-  const draftStorageKey = `guiltfree.profile-page-draft.${draftScope}`;
+
 
   const fetchProfile = useCallback(async () => {
     if (!user) {
@@ -55,7 +54,7 @@ export default function ProfilePage() {
       .eq('id', user?.id)
       .single();
 
-    if (data && !draftHydratedRef.current) {
+    if (data) {
       setProfile({
         full_name: data.full_name || '',
         phone: data.phone || '',
@@ -90,31 +89,12 @@ export default function ProfilePage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    draftHydratedRef.current = false;
-  }, [draftStorageKey]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || draftHydratedRef.current) return;
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as {
-        profile?: typeof profile;
-      };
-      if (parsed.profile) setProfile(parsed.profile);
-      draftHydratedRef.current = true;
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey]);
 
   useEffect(() => {
     if (user) {
       void fetchProfile();
-      if (!draftHydratedRef.current) {
-        setAISettings(loadAISettings(user.id));
-      }
+      setAISettings(loadAISettings(user.id));
       void hydrateAISettingsFromDB();
       return;
     }
@@ -130,11 +110,7 @@ export default function ProfilePage() {
     });
   }, [user, fetchProfile, hydrateAISettingsFromDB]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const payload = { profile };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-  }, [draftStorageKey, profile]);
+
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();

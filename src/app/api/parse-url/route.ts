@@ -24,6 +24,20 @@ export async function POST(req: Request) {
     // Step 1: Fetch the page
     let pageText = "";
     const nutritionImageUrls: string[] = [];
+    
+    const sanitizeData = (data: any) => {
+      const parsed = { ...data };
+      ['calories', 'protein', 'carbs', 'fats_total', 'fiber', 'sugars_total'].forEach((key) => {
+        if (typeof parsed[key] === 'string') {
+          // Removes any letters/symbols and extracts just the float
+          const match = parsed[key].match(/[\d.]+/);
+          parsed[key] = match ? parseFloat(match[0]) : 0;
+        } else if (typeof parsed[key] !== 'number') {
+          parsed[key] = 0;
+        }
+      });
+      return parsed;
+    };
 
     try {
       const response = await fetch(url, {
@@ -39,14 +53,31 @@ export async function POST(req: Request) {
         const html = await response.text();
         const $ = cheerio.load(html);
 
+        // Capture any structured Recipe/Nutrition JSON-LD data before destroying scripts
+        let jsonLdRaw = "";
+        $("script[type='application/ld+json']").each((_, el) => {
+          const contents = $(el).html();
+          if (contents && (contents.includes("NutritionInformation") || contents.includes("Recipe") || contents.includes("nutrition"))) {
+            jsonLdRaw += contents + "\n";
+          }
+        });
+
         // Remove scripts, styles, nav, footer for cleaner text
         $("script, style, nav, footer, header, .nav, .footer, .header, .sidebar, .menu, .ad, .ads").remove();
+
+        // Add spaces to block elements to prevent text squashing (e.g. <tr><td>Calories</td><td>100</td></tr> => Calories 100)
+        $("br, p, div, tr, th, td, li, h1, h2, h3, h4, h5, h6").append(" ");
 
         // Extract text content (limit to reasonable size)
         pageText = $("body").text()
           .replace(/\s+/g, " ")
           .trim()
-          .slice(0, 8000);
+          .slice(0, 12000);
+          
+        if (jsonLdRaw) {
+          pageText = `STRUCTURED PAGE DATA (JSON-LD):\n${jsonLdRaw}\n\nPAGE VISUAL TEXT:\n${pageText}`;
+        }
+
 
         // Look for nutrition-related images
         $("img").each((_, el) => {
@@ -79,11 +110,16 @@ export async function POST(req: Request) {
         });
 
         // Also look at all product images (for Amazon, etc.)
-        $("img[data-a-dynamic-image], img[data-old-hires], img.a-dynamic-image").each((_, el) => {
+        $("img[data-a-dynamic-image], img[data-old-hires], img.a-dynamic-image, img.product-image").each((_, el) => {
           const src = $(el).attr("data-old-hires") || $(el).attr("src") || "";
-          if (src) {
+          if (src && !src.includes("data:image")) {
             try {
               const absoluteUrl = new URL(src, url).href;
+              // Push images to the front if they are larger/main viewer images
+              if (absoluteUrl.includes("viewer") || absoluteUrl.includes("zoom") || absoluteUrl.includes("hero")) {
+                 nutritionImageUrls.unshift(absoluteUrl);
+                 return;
+              }
               if (!nutritionImageUrls.includes(absoluteUrl)) {
                 nutritionImageUrls.push(absoluteUrl);
               }
@@ -92,6 +128,50 @@ export async function POST(req: Request) {
             }
           }
         });
+        
+        // Costco specific: product viewer images are usually loaded dynamically, 
+        // try to catch them from any obvious sources if any exist
+        $(".product-image-container img, .image-viewer img, .product-images img").each((_, el) => {
+          const src = $(el).attr("src") || $(el).attr("data-src") || "";
+          if (src && !src.includes("data:image")) {
+             try {
+                const absoluteUrl = new URL(src, url).href;
+                if (!nutritionImageUrls.includes(absoluteUrl)) {
+                  nutritionImageUrls.unshift(absoluteUrl); // Prioritize explicit product images
+                }
+             } catch {}
+          }
+        });
+
+        // Costco CDN generic fallback
+        $("img").each((_, el) => {
+           const src = $(el).attr("src") || $(el).attr("data-src") || "";
+           if (src && src.includes("costco-static.com") && !src.includes("data:image")) {
+             try {
+               let absoluteUrl = new URL(src, url).href;
+               // Costco uses query parameters to return 350x350 blurry thumbnails instead of hi-res images.
+               absoluteUrl = absoluteUrl.replace(/&width=\d+&height=\d+&fit=bounds&canvas=\d+,\d+/g, '');
+               absoluteUrl = absoluteUrl.replace(/\?width=\d+&height=\d+&fit=bounds&canvas=\d+,\d+/g, '');
+               
+               if (!nutritionImageUrls.includes(absoluteUrl)) {
+                 nutritionImageUrls.unshift(absoluteUrl);
+               }
+             } catch {}
+           }
+        });
+        
+        // Costco lazy loads external images across multiple gallery nodes using "__1", "__2" file naming conventions
+        // Intercept any base images and forcibly inject permutations for the AI to check
+        const costcoVariations: string[] = [];
+        nutritionImageUrls.forEach((imgUrl) => {
+           if (imgUrl.includes("__1")) {
+              for (let i = 2; i <= 6; i++) {
+                 costcoVariations.push(imgUrl.replace("__1", `__${i}`));
+              }
+           }
+        });
+        nutritionImageUrls.unshift(...costcoVariations);
+        
       }
     } catch (fetchError) {
       console.log("Could not fetch page, will rely on AI knowledge:", fetchError);
@@ -101,8 +181,8 @@ export async function POST(req: Request) {
     let visionResult = null;
     if (nutritionImageUrls.length > 0) {
       try {
-        // Limit to first 3 images to avoid overwhelming the API
-        const imagesToAnalyze = nutritionImageUrls.slice(0, 3);
+        // Expand to first 6 images to avoid missing the backside/nutrition label if it's the 4th/5th image in the carousel
+        const imagesToAnalyze = nutritionImageUrls.slice(0, 6);
         
         const imageParts = await Promise.all(
           imagesToAnalyze.map(async (imgUrl) => {
@@ -110,7 +190,10 @@ export async function POST(req: Request) {
               const imgResponse = await fetch(imgUrl, {
                 headers: { "User-Agent": USER_AGENT },
                 signal: AbortSignal.timeout(5000),
+                cache: 'force-cache'
               });
+              if (!imgResponse.ok) return null;
+              
               const buffer = await imgResponse.arrayBuffer();
               const base64 = Buffer.from(buffer).toString("base64");
               const mimeType = imgResponse.headers.get("content-type") || "image/jpeg";
@@ -129,16 +212,17 @@ export async function POST(req: Request) {
           const visionPrompt = `
             Look at these product images carefully. If any image contains a Nutrition Facts label or Supplement Facts label, extract the EXACT values from the label.
             
-            Return a JSON object with:
+            Return a JSON object with: (ensure all nutritional values are strictly NUMBERS with no 'g' or units attached)
             {
+              "scratchpad": "Think step-by-step and locate the exact values on the label. Explain your process here.",
               "name": "Product name",
               "serving_size": "serving size as stated on label",
-              "calories": number (per serving),
-              "protein": number (grams per serving),
-              "carbs": number (grams total carbohydrates per serving),
-              "fats_total": number (grams total fat per serving),
-              "fiber": number (grams dietary fiber per serving),
-              "sugars_total": number (grams total sugars per serving),
+              "calories": number,
+              "protein": number,
+              "carbs": number,
+              "fats_total": number,
+              "fiber": number,
+              "sugars_total": number,
               "rationale": "Extracted from nutrition facts label in product image",
               "source": "vision"
             }
@@ -158,7 +242,7 @@ export async function POST(req: Request) {
 
           const visionData = JSON.parse(visionText);
           if (visionData.source !== "none" && visionData.calories) {
-            visionResult = visionData;
+            visionResult = sanitizeData(visionData);
           }
         }
       } catch (visionError) {
@@ -174,16 +258,17 @@ export async function POST(req: Request) {
       URL: ${url}
       ${pageText ? `\nPage Content:\n${pageText}` : "\nCould not fetch page content. Use your knowledge of this product/URL to provide the best estimate."}
       
-      Find the nutrition facts PER SERVING and return a JSON object with:
+      Find the nutrition facts PER SERVING and return a JSON object with: (ensure all nutritional values are strictly NUMBERS with no 'g' or units attached)
       {
+        "scratchpad": "Very carefully find the nutrition table in the page text. Map every macro to its value. Show your logic here before writing the final numbers.",
         "name": "Name of the food/product",
         "serving_size": "serving size if found",
-        "calories": number (per serving),
-        "protein": number (grams),
-        "carbs": number (grams),
-        "fats_total": number (grams),
-        "fiber": number (grams),
-        "sugars_total": number (grams),
+        "calories": number,
+        "protein": number,
+        "carbs": number,
+        "fats_total": number,
+        "fiber": number,
+        "sugars_total": number,
         "rationale": "Briefly explain how you derived these numbers",
         "source": "text"
       }
@@ -193,13 +278,16 @@ export async function POST(req: Request) {
     const textJsonText = await generateJsonText(textPrompt, aiConfig);
 
     try {
-      textResult = JSON.parse(textJsonText);
+      textResult = sanitizeData(JSON.parse(textJsonText));
     } catch {
       console.error("Text parse failed:", textJsonText);
     }
 
     // Step 5: Pick the best result (prefer vision when available)
     const result = visionResult || textResult;
+    
+    console.log("VISION RESULT:", visionResult);
+    console.log("TEXT RESULT:", textResult);
     
     if (!result) {
       return NextResponse.json({ 
