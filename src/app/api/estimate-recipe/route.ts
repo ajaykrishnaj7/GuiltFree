@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       Based on these instructions, determine a realistic "standard serving" (e.g., "250g", "1 bowl", "2 pancakes", "1 medium potato").
       Then, estimate the total calories, protein, carbs, fats, fiber, and sugar for THAT SPECIFIC serving.
 
-      Output ONLY a JSON object with the following structure:
+      Output ONLY a JSON object with the following structure (ensure all macro nutritional values are PURE NUMBERS with no 'g' or units attached):
       {
         "serving_size": "string", (e.g., "250g" or "1 medium")
         "calories": number,

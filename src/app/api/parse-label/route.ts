@@ -17,16 +17,16 @@ export async function POST(req: Request) {
     const prompt = `
       Analyze this image. If it contains a Nutrition Facts label or Supplement Facts label, extract the EXACT values from the label.
       
-      Return a JSON object with:
+      Return a JSON object with: (ensure all nutritional values are strictly NUMBERS with no 'g' or units attached)
       {
         "name": "Product name if visible, otherwise 'Nutrition Label'",
         "serving_size": "serving size as stated on label",
-        "calories": number (per serving),
-        "protein": number (grams per serving),
-        "carbs": number (grams total carbohydrates per serving),
-        "fats_total": number (grams total fat per serving),
-        "fiber": number (grams dietary fiber per serving),
-        "sugars_total": number (grams total sugars per serving),
+        "calories": number,
+        "protein": number,
+        "carbs": number,
+        "fats_total": number,
+        "fiber": number,
+        "sugars_total": number,
         "rationale": "Extracted from nutrition facts label in uploaded image"
       }
       

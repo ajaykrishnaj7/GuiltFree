@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       Extract a list of ingredients and their nutritional information from the following recipe text.
       For each ingredient, estimate the calories, protein, carbs, fats, fiber, and sugars based on the specified quantity.
       
-      Output ONLY a JSON array of objects with the following structure:
+      Output ONLY a JSON array of objects with the following structure (ensure all nutritional values are strictly NUMBERS with no 'g' or units attached):
       {
         "ingredients": [
           {

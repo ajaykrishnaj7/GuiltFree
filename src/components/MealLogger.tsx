@@ -75,7 +75,7 @@ interface DishDraft {
 export default function MealLogger() {
   const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
-  const draftHydratedRef = useRef(false);
+
   const [text, setText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -102,8 +102,7 @@ export default function MealLogger() {
   const [dishDrafts, setDishDrafts] = useState<DishDraft[]>([{ id: `dish-${Date.now()}`, name: 'Dish 1', ingredients: [] }]);
   const [dishSearch, setDishSearch] = useState<Record<string, string>>({});
   const [dishInputDrafts, setDishInputDrafts] = useState<Record<string, string>>({});
-  const draftScope = user?.id || 'anon';
-  const draftStorageKey = `guiltfree.meal-logger-draft.${draftScope}`;
+
 
   const handleManualSubmit = () => {
     setError(null);
@@ -427,9 +426,9 @@ export default function MealLogger() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
     setAISettings(loadAISettings(user.id));
-  }, [user]);
+  }, [user?.id]);
 
   const getAIConfigPayload = () => (
     aiSettings.useUserKey
@@ -620,7 +619,7 @@ export default function MealLogger() {
       return;
     }
     setDailyTotals({ calories: 0 });
-  }, [user, logDate]);
+  }, [user?.id, logDate]);
 
   useEffect(() => {
     void fetchDailyTotals();
@@ -630,10 +629,10 @@ export default function MealLogger() {
   const [suggestions, setSuggestions] = useState<KitchenItem[]>([]);
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       fetchKitchenItems();
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchKitchenItems = async () => {
     const { data } = await supabase.from('kitchen_items').select('*');
@@ -784,76 +783,10 @@ export default function MealLogger() {
     setDishDrafts([{ id: `dish-${Date.now()}`, name: 'Dish 1', ingredients: [] }]);
     setDishSearch({});
     setDishInputDrafts({});
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(draftStorageKey);
-    }
+
   };
 
-  useEffect(() => {
-    draftHydratedRef.current = false;
-  }, [draftStorageKey]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined' || draftHydratedRef.current) return;
-    draftHydratedRef.current = true;
-    const raw = window.localStorage.getItem(draftStorageKey);
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw) as {
-        text?: string;
-        isManual?: boolean;
-        logDate?: string;
-        logTime?: string;
-        manualData?: typeof manualData;
-        manualEntryMode?: 'quick' | 'kitchen';
-        dishDrafts?: DishDraft[];
-        dishSearch?: Record<string, string>;
-        dishInputDrafts?: Record<string, string>;
-        parsedMeals?: MealData[] | null;
-      };
-      if (typeof parsed.text === 'string') setText(parsed.text);
-      if (typeof parsed.isManual === 'boolean') setIsManual(parsed.isManual);
-      if (typeof parsed.logDate === 'string') setLogDate(parsed.logDate);
-      if (typeof parsed.logTime === 'string') setLogTime(parsed.logTime);
-      if (parsed.manualData) setManualData(parsed.manualData);
-      if (parsed.manualEntryMode === 'quick' || parsed.manualEntryMode === 'kitchen') setManualEntryMode(parsed.manualEntryMode);
-      if (Array.isArray(parsed.dishDrafts) && parsed.dishDrafts.length > 0) setDishDrafts(parsed.dishDrafts);
-      if (parsed.dishSearch) setDishSearch(parsed.dishSearch);
-      if (parsed.dishInputDrafts) setDishInputDrafts(parsed.dishInputDrafts);
-      if (parsed.parsedMeals) setParsedMeals(parsed.parsedMeals);
-    } catch {
-      window.localStorage.removeItem(draftStorageKey);
-    }
-  }, [draftStorageKey]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !draftHydratedRef.current) return;
-    const payload = {
-      text,
-      isManual,
-      logDate,
-      logTime,
-      manualData,
-      manualEntryMode,
-      dishDrafts,
-      dishSearch,
-      dishInputDrafts,
-      parsedMeals,
-    };
-    window.localStorage.setItem(draftStorageKey, JSON.stringify(payload));
-  }, [
-    draftStorageKey,
-    text,
-    isManual,
-    logDate,
-    logTime,
-    manualData,
-    manualEntryMode,
-    dishDrafts,
-    dishSearch,
-    dishInputDrafts,
-    parsedMeals,
-  ]);
 
   const mealTotalCals = parsedMeals?.reduce((sum, m) => sum + m.items.reduce((s, i) => s + i.calories, 0), 0) || 0;
   const projectedDailyTotal = dailyTotals.calories + mealTotalCals;
