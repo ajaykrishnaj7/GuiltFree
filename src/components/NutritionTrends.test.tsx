@@ -146,24 +146,25 @@ describe('NutritionTrends', () => {
     global.fetch = originalFetch;
   });
 
-  it('renders summary cards and timeline data', async () => {
+  it('renders summary cards and activity data', async () => {
     render(<NutritionTrends />);
 
     expect(await screen.findByText('Weekly Average')).toBeInTheDocument();
     expect(screen.getByText('Monthly Average')).toBeInTheDocument();
-    expect(screen.getByText('Timeline')).toBeInTheDocument();
+    expect(screen.getByText('Activity')).toBeInTheDocument();
     expect(screen.getByText('Meals Breakdown')).toBeInTheDocument();
   });
 
-  it('supports switching timeframe and selected date detail', async () => {
+  it('supports switching activity periods', async () => {
     render(<NutritionTrends />);
 
-    await screen.findByText('Timeline');
-    fireEvent.click(screen.getByRole('button', { name: '30D' }));
+    await screen.findByText('Activity');
+    fireEvent.click(screen.getByRole('button', { name: 'M' }));
 
     await waitFor(() => {
       expect(screen.getAllByText(/Goal Reach:/i).length).toBeGreaterThan(0);
     });
+    expect(screen.getByText(/Period Average: M average/i)).toBeInTheDocument();
   });
 
   it('generates AI suggestion and displays fallback notice details', async () => {
