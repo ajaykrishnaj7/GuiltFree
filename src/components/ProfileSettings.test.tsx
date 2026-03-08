@@ -87,10 +87,10 @@ describe('ProfileSettings', () => {
     render(<ProfileSettings isOpen={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByDisplayValue('2200'));
     
-    fireEvent.click(screen.getByText('Save Goals'));
+    fireEvent.click(screen.getByText('Save Targets'));
     await waitFor(() => {
       expect(mockUpdate).toHaveBeenCalled();
-      expect(window.alert).toHaveBeenCalledWith('Goals updated!');
+      expect(window.alert).toHaveBeenCalledWith('Macro targets saved successfully!');
     });
   });
 

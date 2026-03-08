@@ -147,6 +147,7 @@ describe('EditMealModal', () => {
     // First quantity input belongs to first item (starts at 1)
     const qtyInputs = screen.getAllByDisplayValue('1');
     fireEvent.change(qtyInputs[0], { target: { value: '2' } });
+    fireEvent.blur(qtyInputs[0], { target: { value: '2' } });
 
     // First item calories/protein should scale 300->600 and 25->50
     expect(screen.getByDisplayValue('600')).toBeInTheDocument();
@@ -184,6 +185,7 @@ describe('EditMealModal', () => {
 
     const qtyInputs = screen.getAllByDisplayValue('1');
     fireEvent.change(qtyInputs[0], { target: { value: '2' } });
+    fireEvent.blur(qtyInputs[0], { target: { value: '2' } });
 
     const unitInputs = screen.getAllByDisplayValue('serving');
     fireEvent.change(unitInputs[0], { target: { value: 'piece' } });
@@ -265,6 +267,7 @@ describe('EditMealModal', () => {
     const ingredientQtyInput = qtyInputs.find((input) => (input as HTMLInputElement).value === '1');
     expect(ingredientQtyInput).toBeTruthy();
     fireEvent.change(ingredientQtyInput!, { target: { value: '2' } });
+    fireEvent.blur(ingredientQtyInput!, { target: { value: '2' } });
 
     await waitFor(() => {
       expect(screen.getByDisplayValue('320')).toBeInTheDocument();
