@@ -167,6 +167,31 @@ describe('NutritionTrends', () => {
     expect(screen.getByText(/Period Average: M average/i)).toBeInTheDocument();
   });
 
+  it('shows meal breakdown automatically for D period', async () => {
+    render(<NutritionTrends />);
+    expect(await screen.findByText('Activity')).toBeInTheDocument();
+    const breakfast = screen.queryByText('Breakfast Bowl');
+    const lunch = screen.queryByText('Lunch Plate');
+    expect(Boolean(breakfast || lunch)).toBe(true);
+    expect(screen.queryByText('No meals logged on this day.')).not.toBeInTheDocument();
+  });
+
+  it('supports selecting a day bar then clearing back to average', async () => {
+    const { container } = render(<NutritionTrends />);
+    await screen.findByText('Activity');
+
+    fireEvent.click(screen.getByRole('button', { name: 'W' }));
+    expect(await screen.findByText(/Period Average: W average/i)).toBeInTheDocument();
+
+    const bars = container.querySelectorAll('button.rounded-t-sm');
+    expect(bars.length).toBeGreaterThan(0);
+    fireEvent.click(bars[0]);
+    expect(screen.getByText(/Selected Day:/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Avg' }));
+    expect(screen.getByText(/Period Average: W average/i)).toBeInTheDocument();
+  });
+
   it('generates AI suggestion and displays fallback notice details', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -231,6 +256,62 @@ describe('NutritionTrends', () => {
 
     const pushButton = await screen.findByRole('button', { name: 'Enable Push' });
     fireEvent.click(pushButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Enable Push' })).toBeInTheDocument();
+    });
+  });
+
+  it('enables and disables push when supported', async () => {
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY = 'AQAB';
+    const unsubscribe = jest.fn().mockResolvedValue(true);
+    Object.defineProperty(window, 'PushManager', {
+      configurable: true,
+      value: function PushManager() {},
+    });
+
+    Object.defineProperty(window, 'Notification', {
+      configurable: true,
+      value: {
+        permission: 'default',
+        requestPermission: jest.fn().mockResolvedValue('granted'),
+      },
+    });
+
+    Object.defineProperty(window.navigator, 'serviceWorker', {
+      configurable: true,
+      value: {
+        register: jest.fn().mockResolvedValue({
+          pushManager: {
+            getSubscription: jest.fn().mockResolvedValue({
+              endpoint: 'https://push.example/sub',
+              toJSON: () => ({ endpoint: 'https://push.example/sub', keys: {} }),
+              unsubscribe,
+            }),
+          },
+        }),
+        ready: Promise.resolve({
+          pushManager: {
+            getSubscription: jest.fn().mockResolvedValue({
+              endpoint: 'https://push.example/sub',
+              unsubscribe,
+            }),
+          },
+        }),
+      },
+    });
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ title: 'Great work', message: 'Keep going' }),
+    }) as unknown as typeof fetch;
+
+    render(<NutritionTrends />);
+    const enableBtn = await screen.findByRole('button', { name: 'Enable Push' });
+    fireEvent.click(enableBtn);
+
+    expect(await screen.findByRole('button', { name: /Push: On/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Push: On' }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Enable Push' })).toBeInTheDocument();

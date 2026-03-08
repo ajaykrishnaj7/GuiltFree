@@ -62,4 +62,26 @@ describe('POST /api/push/dispatch', () => {
     expect(data.title).toBe('Nice work');
     expect(sendVapidPush).toHaveBeenCalled();
   });
+
+  it('falls back to local suggestion when AI generation fails', async () => {
+    (generateJsonText as jest.Mock).mockRejectedValueOnce(new Error('provider down'));
+    const request = {
+      json: () => Promise.resolve({}),
+      headers: new Headers({ Authorization: 'Bearer token' }),
+    } as unknown as Request;
+    const response = await POST(request);
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(data.title).toBe('Daily nutrition check-in');
+  });
+
+  it('returns 401 when auth fails', async () => {
+    (getAuthenticatedUser as jest.Mock).mockRejectedValueOnce(new Error('auth failed'));
+    const request = {
+      json: () => Promise.resolve({}),
+      headers: new Headers(),
+    } as unknown as Request;
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+  });
 });
