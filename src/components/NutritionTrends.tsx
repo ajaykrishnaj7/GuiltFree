@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
 import { BarChart3, TrendingUp, Calendar, Loader2 } from 'lucide-react';
@@ -41,13 +41,12 @@ export default function NutritionTrends() {
   const [stats, setStats] = useState<DailyStats[]>([]);
   const [allMeals, setAllMeals] = useState<any[]>([]);
   const [goals, setGoals] = useState<GoalProfile | null>(null);
-  const [timeframe, setTimeframe] = useState<'weekly' | 'monthly'>('weekly');
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [activityPeriod, setActivityPeriod] = useState<'D' | 'W' | 'M' | '3M' | '6M' | '9M' | 'Y'>('D');
+  const [activitySelectedDate, setActivitySelectedDate] = useState<string | null>(null);
   const [dailySuggestion, setDailySuggestion] = useState<DailySuggestion | null>(null);
   const [isSuggestionLoading, setIsSuggestionLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [suggestionNotice, setSuggestionNotice] = useState<string | null>(null);
-  const timelineRef = useRef<HTMLDivElement | null>(null);
 
   const getFriendlyFallbackReason = (details?: string) => {
     if (!details) return 'AI unavailable';
@@ -86,15 +85,15 @@ export default function NutritionTrends() {
   const fetchStats = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const lookbackDate = new Date();
+    lookbackDate.setDate(lookbackDate.getDate() - 365);
 
     const [mealsRes, profileRes] = await Promise.all([
       supabase
         .from('meals')
         .select('id, name, type, created_at, total_calories, total_protein, total_fiber, total_carbs, total_fats, total_sugars_total')
         .eq('user_id', user.id)
-        .gte('created_at', thirtyDaysAgo.toISOString())
+        .gte('created_at', lookbackDate.toISOString())
         .order('created_at', { ascending: true }),
       supabase
         .from('profiles')
@@ -125,11 +124,6 @@ export default function NutritionTrends() {
       const statsArray = Object.values(grouped) as DailyStats[];
       setStats(statsArray);
       setAllMeals(mealsRes.data);
-      if (statsArray.length > 0) {
-        const today = new Date().toLocaleDateString();
-        const hasToday = statsArray.some((entry) => entry.date === today);
-        setSelectedDate(hasToday ? today : statsArray[statsArray.length - 1].date);
-      }
     }
     setLoading(false);
   }, [user]);
@@ -143,24 +137,6 @@ export default function NutritionTrends() {
       setLoading(false);
     }
   }, [user, authLoading, fetchStats]);
-
-  const selectedDayData = stats.find(s => s.date === selectedDate);
-  const todayDateLabel = new Date().toLocaleDateString();
-  const suggestionDateLabel = selectedDate || todayDateLabel;
-  const suggestionDayData = stats.find(s => s.date === suggestionDateLabel) || null;
-  const visibleStats = useMemo(
-    () => stats.slice(timeframe === 'weekly' ? -7 : -30),
-    [stats, timeframe]
-  );
-
-  useEffect(() => {
-    const viewport = timelineRef.current;
-    if (!viewport || typeof viewport.scrollTo !== 'function') return;
-    const id = window.requestAnimationFrame(() => {
-      viewport.scrollTo({ left: viewport.scrollWidth, behavior: 'auto' });
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [timeframe, visibleStats.length]);
 
   const generateDailySuggestion = async (notify = false) => {
     if (!user || !goals || !suggestionDayData) return;
@@ -362,6 +338,16 @@ export default function NutritionTrends() {
     return Math.round((value / goal) * 100);
   };
 
+  const getActivityPeriodDays = (period: 'D' | 'W' | 'M' | '3M' | '6M' | '9M' | 'Y') => {
+    if (period === 'D') return 1;
+    if (period === 'W') return 7;
+    if (period === 'M') return 30;
+    if (period === '3M') return 90;
+    if (period === '6M') return 180;
+    if (period === '9M') return 270;
+    return 365;
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex justify-center py-20">
@@ -386,10 +372,264 @@ export default function NutritionTrends() {
 
   const weeklyAvg = getAverages(7);
   const monthlyAvg = getAverages(30);
+  const activityDays = getActivityPeriodDays(activityPeriod);
+  const activityStats = stats.slice(-activityDays);
+  const activityAverages = activityStats.length > 0
+    ? activityStats.reduce((acc, day) => ({
+      calories: acc.calories + day.calories,
+      protein: acc.protein + day.protein,
+      fiber: acc.fiber + day.fiber,
+      carbs: acc.carbs + day.carbs,
+      fats: acc.fats + day.fats,
+      sugars: acc.sugars + day.sugars,
+    }), { calories: 0, protein: 0, fiber: 0, carbs: 0, fats: 0, sugars: 0 })
+    : { calories: 0, protein: 0, fiber: 0, carbs: 0, fats: 0, sugars: 0 };
+  const activityAverageValues = {
+    calories: activityStats.length > 0 ? activityAverages.calories / activityStats.length : 0,
+    protein: activityStats.length > 0 ? activityAverages.protein / activityStats.length : 0,
+    fiber: activityStats.length > 0 ? activityAverages.fiber / activityStats.length : 0,
+    carbs: activityStats.length > 0 ? activityAverages.carbs / activityStats.length : 0,
+    fats: activityStats.length > 0 ? activityAverages.fats / activityStats.length : 0,
+    sugars: activityStats.length > 0 ? activityAverages.sugars / activityStats.length : 0,
+  };
+  const selectedActivityDay = activitySelectedDate
+    ? activityStats.find((day) => day.date === activitySelectedDate) || null
+    : null;
+  const effectiveSelectedActivityDay = selectedActivityDay || (activityPeriod === 'D' ? (activityStats[activityStats.length - 1] ?? null) : null);
+  const todayDateLabel = new Date().toLocaleDateString();
+  const suggestionDateLabel = effectiveSelectedActivityDay?.date || todayDateLabel;
+  const suggestionDayData = effectiveSelectedActivityDay || stats.find((s) => s.date === todayDateLabel) || null;
+  const activityDisplay = effectiveSelectedActivityDay || activityAverageValues;
+  const activityDisplayLabel = effectiveSelectedActivityDay
+    ? new Date(effectiveSelectedActivityDay.date).toLocaleDateString([], { month: 'short', day: 'numeric' })
+    : `${activityPeriod} average`;
+  const maxProtein = Math.max(...activityStats.map((d) => d.protein), goals?.daily_protein_goal_g ?? 1, 1);
+  const maxFiber = Math.max(...activityStats.map((d) => d.fiber), goals?.daily_fiber_goal_g ?? 1, 1);
+  const maxCarbs = Math.max(...activityStats.map((d) => d.carbs), goals?.daily_carbs_goal_g ?? 1, 1);
+  const maxFats = Math.max(...activityStats.map((d) => d.fats), goals?.daily_fats_goal_g ?? 1, 1);
+  const maxSugars = Math.max(...activityStats.map((d) => d.sugars), goals?.daily_sugars_total_goal_g ?? 1, 1);
+  const useScrollableActivityBars = activityStats.length > 30;
+  const activitySelectedMeals = effectiveSelectedActivityDay
+    ? allMeals.filter((meal) => new Date(meal.created_at).toLocaleDateString() === effectiveSelectedActivityDay.date)
+    : [];
 
   return (
     <div className="flex flex-col gap-6 pb-20 min-h-[60vh]">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div
+        className="bg-zinc-950 text-white rounded-[2rem] p-4 sm:p-6 border border-zinc-800 shadow-xl order-2"
+        onClick={() => setActivitySelectedDate(null)}
+      >
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 className="text-xl sm:text-2xl font-black tracking-tight">Activity</h3>
+          <div className="grid grid-cols-4 sm:flex items-center gap-1 bg-zinc-800 rounded-2xl p-1 w-full sm:w-auto max-w-full">
+            {(['D', 'W', 'M', '3M', '6M', '9M', 'Y'] as const).map((period) => (
+              <button
+                key={period}
+                type="button"
+                onClick={() => {
+                  setActivityPeriod(period);
+                  setActivitySelectedDate(null);
+                }}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black tracking-widest transition-all min-h-[36px] ${activityPeriod === period ? 'bg-zinc-300 text-zinc-900' : 'text-zinc-400 hover:text-zinc-100'}`}
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <p className="text-xs uppercase font-black tracking-widest text-zinc-400">
+            {effectiveSelectedActivityDay ? 'Selected Day' : 'Period Average'}: {activityDisplayLabel}
+          </p>
+          <button
+            type="button"
+            onClick={() => setActivitySelectedDate(null)}
+            className="text-[11px] font-black text-zinc-300 hover:text-white uppercase tracking-widest"
+          >
+            Avg
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-violet-300">Calories</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.calories || 0)} <span className="text-zinc-400 text-lg">kcal</span></p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-indigo-300">Protein</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.protein || 0)} <span className="text-zinc-400 text-lg">g</span></p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-emerald-300">Fiber</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.fiber || 0)} <span className="text-zinc-400 text-lg">g</span></p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-amber-300">Carbs</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.carbs || 0)} <span className="text-zinc-400 text-lg">g</span></p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-orange-300">Fats</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.fats || 0)} <span className="text-zinc-400 text-lg">g</span></p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3">
+            <p className="text-[10px] uppercase tracking-widest font-black text-pink-300">Sugars</p>
+            <p className="text-2xl font-black">{Math.round(activityDisplay.sugars || 0)} <span className="text-zinc-400 text-lg">g</span></p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div onClick={() => setActivitySelectedDate(null)}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-indigo-300 font-black">Protein</p>
+              <p className="text-sm text-zinc-300">{Math.round(activityDisplay.protein || 0)} / {goals?.daily_protein_goal_g ?? 0}g</p>
+            </div>
+            <div className={`h-24 border border-zinc-800 rounded-xl p-2 ${useScrollableActivityBars ? 'overflow-x-auto' : ''}`}>
+              <div className={`h-full flex items-end gap-1 ${useScrollableActivityBars ? 'min-w-max' : 'w-full'}`}>
+              {activityStats.map((day, idx) => (
+                <button
+                  key={`pro-${idx}`}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActivitySelectedDate(day.date); }}
+                  className={`${useScrollableActivityBars ? 'w-2.5 sm:w-3 shrink-0' : 'flex-1'} rounded-t-sm ${activitySelectedDate === day.date ? 'bg-indigo-400' : 'bg-indigo-300/80 hover:bg-indigo-300'}`}
+                  style={{ height: `${Math.max(4, (day.protein / maxProtein) * 100)}%` }}
+                />
+              ))}
+              </div>
+            </div>
+          </div>
+          <div onClick={() => setActivitySelectedDate(null)}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-emerald-300 font-black">Fiber</p>
+              <p className="text-sm text-zinc-300">{Math.round(activityDisplay.fiber || 0)} / {goals?.daily_fiber_goal_g ?? 0}g</p>
+            </div>
+            <div className={`h-24 border border-zinc-800 rounded-xl p-2 ${useScrollableActivityBars ? 'overflow-x-auto' : ''}`}>
+              <div className={`h-full flex items-end gap-1 ${useScrollableActivityBars ? 'min-w-max' : 'w-full'}`}>
+              {activityStats.map((day, idx) => (
+                <button
+                  key={`fib-${idx}`}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActivitySelectedDate(day.date); }}
+                  className={`${useScrollableActivityBars ? 'w-2.5 sm:w-3 shrink-0' : 'flex-1'} rounded-t-sm ${activitySelectedDate === day.date ? 'bg-emerald-400' : 'bg-emerald-300/80 hover:bg-emerald-300'}`}
+                  style={{ height: `${Math.max(4, (day.fiber / maxFiber) * 100)}%` }}
+                />
+              ))}
+              </div>
+            </div>
+          </div>
+          <div onClick={() => setActivitySelectedDate(null)}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-amber-300 font-black">Carbs</p>
+              <p className="text-sm text-zinc-300">{Math.round(activityDisplay.carbs || 0)} / {goals?.daily_carbs_goal_g ?? 0}g</p>
+            </div>
+            <div className={`h-24 border border-zinc-800 rounded-xl p-2 ${useScrollableActivityBars ? 'overflow-x-auto' : ''}`}>
+              <div className={`h-full flex items-end gap-1 ${useScrollableActivityBars ? 'min-w-max' : 'w-full'}`}>
+              {activityStats.map((day, idx) => (
+                <button
+                  key={`carb-${idx}`}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActivitySelectedDate(day.date); }}
+                  className={`${useScrollableActivityBars ? 'w-2.5 sm:w-3 shrink-0' : 'flex-1'} rounded-t-sm ${activitySelectedDate === day.date ? 'bg-amber-400' : 'bg-amber-300/80 hover:bg-amber-300'}`}
+                  style={{ height: `${Math.max(4, (day.carbs / maxCarbs) * 100)}%` }}
+                />
+              ))}
+              </div>
+            </div>
+          </div>
+          <div onClick={() => setActivitySelectedDate(null)}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-orange-300 font-black">Fats</p>
+              <p className="text-sm text-zinc-300">{Math.round(activityDisplay.fats || 0)} / {goals?.daily_fats_goal_g ?? 0}g</p>
+            </div>
+            <div className={`h-24 border border-zinc-800 rounded-xl p-2 ${useScrollableActivityBars ? 'overflow-x-auto' : ''}`}>
+              <div className={`h-full flex items-end gap-1 ${useScrollableActivityBars ? 'min-w-max' : 'w-full'}`}>
+              {activityStats.map((day, idx) => (
+                <button
+                  key={`fat-${idx}`}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActivitySelectedDate(day.date); }}
+                  className={`${useScrollableActivityBars ? 'w-2.5 sm:w-3 shrink-0' : 'flex-1'} rounded-t-sm ${activitySelectedDate === day.date ? 'bg-orange-400' : 'bg-orange-300/80 hover:bg-orange-300'}`}
+                  style={{ height: `${Math.max(4, (day.fats / maxFats) * 100)}%` }}
+                />
+              ))}
+              </div>
+            </div>
+          </div>
+          <div onClick={() => setActivitySelectedDate(null)}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-pink-300 font-black">Sugars</p>
+              <p className="text-sm text-zinc-300">{Math.round(activityDisplay.sugars || 0)} / {goals?.daily_sugars_total_goal_g ?? 0}g</p>
+            </div>
+            <div className={`h-24 border border-zinc-800 rounded-xl p-2 ${useScrollableActivityBars ? 'overflow-x-auto' : ''}`}>
+              <div className={`h-full flex items-end gap-1 ${useScrollableActivityBars ? 'min-w-max' : 'w-full'}`}>
+              {activityStats.map((day, idx) => (
+                <button
+                  key={`sug-${idx}`}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setActivitySelectedDate(day.date); }}
+                  className={`${useScrollableActivityBars ? 'w-2.5 sm:w-3 shrink-0' : 'flex-1'} rounded-t-sm ${activitySelectedDate === day.date ? 'bg-pink-400' : 'bg-pink-300/80 hover:bg-pink-300'}`}
+                  style={{ height: `${Math.max(4, (day.sugars / maxSugars) * 100)}%` }}
+                />
+              ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
+          <p className="text-[10px] uppercase tracking-widest font-black text-zinc-400 mb-2">Meals Breakdown</p>
+          {effectiveSelectedActivityDay ? (
+            activitySelectedMeals.length > 0 ? (
+              <div className="space-y-3">
+                {activitySelectedMeals.map((meal, idx) => (
+                  <div key={`${meal.id}-${idx}`} className="bg-zinc-950 border border-zinc-800 p-4 rounded-[1.5rem] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2 py-1 bg-zinc-800 text-[10px] font-black uppercase tracking-widest rounded-full text-zinc-300">
+                          {meal.type}
+                        </span>
+                        <h5 className="text-base font-black text-zinc-100">{meal.name}</h5>
+                      </div>
+                      <div className="grid grid-cols-5 gap-2 sm:gap-4 mt-3">
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-indigo-300 uppercase font-black tracking-widest mb-1">P</span>
+                          <span className="text-sm font-black text-zinc-100">{Number(meal.total_protein || 0).toFixed(1)}g</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-emerald-300 uppercase font-black tracking-widest mb-1">Fib</span>
+                          <span className="text-sm font-black text-zinc-100">{Number(meal.total_fiber || 0).toFixed(1)}g</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-amber-300 uppercase font-black tracking-widest mb-1">C</span>
+                          <span className="text-sm font-black text-zinc-100">{Number(meal.total_carbs || 0).toFixed(1)}g</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-orange-300 uppercase font-black tracking-widest mb-1">F</span>
+                          <span className="text-sm font-black text-zinc-100">{Number(meal.total_fats || 0).toFixed(1)}g</span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-pink-300 uppercase font-black tracking-widest mb-1">S</span>
+                          <span className="text-sm font-black text-zinc-100">{Number(meal.total_sugars_total || 0).toFixed(1)}g</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-end flex-col gap-1">
+                      <span className="text-2xl font-black text-violet-300 leading-none">{Math.round(Number(meal.total_calories || 0))}</span>
+                      <span className="text-[10px] text-zinc-400 font-black uppercase tracking-widest">kcal</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400">No meals logged on this day.</p>
+            )
+          ) : (
+            <p className="text-sm text-zinc-400">Tap any bar to see that day&apos;s meals. Tap outside bars to clear selection.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 order-1">
         {/* Weekly Summary */}
         <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-4 sm:p-6 shadow-sm">
           <div className="flex items-center gap-3 mb-4">
@@ -483,189 +723,11 @@ export default function NutritionTrends() {
         </div>
       </div>
 
-      {/* Daily Progress Chart (iOS Style) */}
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2.5rem] p-4 sm:p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="font-bold text-xl flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-indigo-500" />
-            Timeline
-          </h3>
-          <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
-            <button 
-              onClick={() => setTimeframe('weekly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${timeframe === 'weekly' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}
-            >
-              7D
-            </button>
-            <button 
-              onClick={() => setTimeframe('monthly')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${timeframe === 'monthly' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}
-            >
-              30D
-            </button>
-          </div>
-        </div>
-
-        <div ref={timelineRef} className="overflow-x-auto pb-4 -mx-4 px-4 scrollbar-hide">
-          <div className="flex items-end h-48 gap-4 min-w-max pb-2">
-            {visibleStats.map((day, i) => {
-              const maxMacro = Math.max(...stats.map(s => Math.max(s.protein, s.carbs, s.fats)), 100);
-              const isActive = selectedDate === day.date;
-              
-              return (
-                <div 
-                  key={i} 
-                  className={`flex flex-col items-center gap-3 flex-shrink-0 transition-all duration-300 ${isActive ? 'scale-105' : 'opacity-80 hover:opacity-100'}`}
-                >
-                  <div className="flex items-end gap-1 h-36 px-2">
-                    {/* Protein Bar */}
-                    <div className="group/bar relative flex flex-col items-center h-full w-5">
-                      <div 
-                        className="w-2.5 sm:w-3 bg-indigo-50 dark:bg-zinc-800 rounded-full h-full absolute top-0"
-                      />
-                      <div 
-                        className="w-2.5 sm:w-3 bg-indigo-500 rounded-full transition-all duration-700 relative shadow-sm group-hover/bar:bg-indigo-400"
-                        style={{ height: `${Math.max(12, (day.protein / maxMacro) * 100)}%` }}
-                      >
-                         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none whitespace-nowrap z-20 font-black shadow-xl">
-                            P: {Math.round(day.protein)}g
-                         </div>
-                      </div>
-                    </div>
-
-                    {/* Carbs Bar */}
-                    <div className="group/bar relative flex flex-col items-center h-full w-5">
-                      <div 
-                        className="w-2.5 sm:w-3 bg-emerald-50 dark:bg-zinc-800 rounded-full h-full absolute top-0"
-                      />
-                      <div 
-                        className="w-2.5 sm:w-3 bg-emerald-500 rounded-full transition-all duration-700 relative shadow-sm group-hover/bar:bg-emerald-400"
-                        style={{ height: `${Math.max(12, (day.carbs / maxMacro) * 100)}%` }}
-                      >
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none whitespace-nowrap z-20 font-black shadow-xl">
-                            C: {Math.round(day.carbs)}g
-                         </div>
-                      </div>
-                    </div>
-
-                    {/* Fats Bar */}
-                    <div className="group/bar relative flex flex-col items-center h-full w-5">
-                      <div 
-                        className="w-2.5 sm:w-3 bg-amber-50 dark:bg-zinc-800 rounded-full h-full absolute top-0"
-                      />
-                      <div 
-                        className="w-2.5 sm:w-3 bg-amber-500 rounded-full transition-all duration-700 relative shadow-sm group-hover/bar:bg-amber-400"
-                        style={{ height: `${Math.max(12, (day.fats / maxMacro) * 100)}%` }}
-                      >
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[10px] py-1.5 px-2.5 rounded-lg opacity-0 group-hover/bar:opacity-100 transition-all pointer-events-none whitespace-nowrap z-20 font-black shadow-xl">
-                            F: {Math.round(day.fats)}g
-                         </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button 
-                    onClick={() => setSelectedDate(day.date)}
-                    className="flex flex-col items-center gap-1 group/btn min-h-[44px] min-w-[44px]"
-                  >
-                    <span className={`text-sm sm:text-[10px] font-black uppercase tracking-tight ${isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-zinc-400 group-hover/btn:text-zinc-600'}`}>
-                      {new Date(day.date).toLocaleDateString([], { weekday: 'short' })}
-                    </span>
-                    <span className={`text-sm sm:text-[9px] font-bold ${isActive ? 'text-zinc-900 dark:text-white' : 'text-zinc-400'}`}>
-                      {day.calories}
-                    </span>
-                    {isActive && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full mt-1" />}
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selected Day Detail Card */}
-        {selectedDayData && (
-          <div className="mt-8 pt-8 border-t border-zinc-100 dark:border-zinc-800 animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex flex-col">
-                <span className="text-sm sm:text-[10px] text-zinc-400 uppercase font-black tracking-widest">Detail View</span>
-                <h4 className="text-2xl font-black">
-                  {new Date(selectedDayData.date).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })}
-                </h4>
-              </div>
-              <div className="flex flex-col items-end">
-                <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400">{selectedDayData.calories}</span>
-                <span className="text-sm sm:text-[10px] text-zinc-400 font-bold uppercase tracking-tighter">Total Calories</span>
-                <span className="text-sm sm:text-xs text-zinc-500 font-bold uppercase tracking-tighter">
-                  {getGoalPercentage(selectedDayData.calories, goals?.daily_calorie_goal) ?? '—'}% of goal
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-               <div className="bg-indigo-50 dark:bg-indigo-950/20 p-4 rounded-3xl border border-indigo-100 dark:border-indigo-900/50">
-                 <span className="text-sm sm:text-[10px] text-indigo-600 dark:text-indigo-400 uppercase font-bold tracking-widest block mb-1 text-center">Protein</span>
-                 <div className="text-xl font-black text-center text-indigo-700 dark:text-indigo-300">{selectedDayData.protein.toFixed(1)}g</div>
-                 <div className="text-sm sm:text-xs text-center text-indigo-500 font-bold mt-1">{getGoalPercentage(selectedDayData.protein, goals?.daily_protein_goal_g) ?? '—'}%</div>
-               </div>
-               <div className="bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-3xl border border-emerald-100 dark:border-emerald-900/50">
-                 <span className="text-sm sm:text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-bold tracking-widest block mb-1 text-center">Fiber</span>
-                 <div className="text-xl font-black text-center text-emerald-700 dark:text-emerald-300">{selectedDayData.fiber.toFixed(1)}g</div>
-                 <div className="text-sm sm:text-xs text-center text-emerald-500 font-bold mt-1">{getGoalPercentage(selectedDayData.fiber, goals?.daily_fiber_goal_g) ?? '—'}%</div>
-               </div>
-               <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-3xl border border-amber-100 dark:border-amber-900/50">
-                 <span className="text-sm sm:text-[10px] text-amber-600 dark:text-amber-400 uppercase font-bold tracking-widest block mb-1 text-center">Carbs</span>
-                 <div className="text-xl font-black text-center text-amber-700 dark:text-amber-300">{selectedDayData.carbs.toFixed(1)}g</div>
-                 <div className="text-sm sm:text-xs text-center text-amber-500 font-bold mt-1">{getGoalPercentage(selectedDayData.carbs, goals?.daily_carbs_goal_g) ?? '—'}%</div>
-               </div>
-               <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-3xl border border-orange-100 dark:border-orange-900/50">
-                 <span className="text-sm sm:text-[10px] text-orange-600 dark:text-orange-400 uppercase font-bold tracking-widest block mb-1 text-center">Fats</span>
-                 <div className="text-xl font-black text-center text-orange-700 dark:text-orange-300">{selectedDayData.fats.toFixed(1)}g</div>
-                 <div className="text-sm sm:text-xs text-center text-orange-500 font-bold mt-1">{getGoalPercentage(selectedDayData.fats, goals?.daily_fats_goal_g) ?? '—'}%</div>
-               </div>
-               <div className="bg-pink-50 dark:bg-pink-950/20 p-4 rounded-3xl border border-pink-100 dark:border-pink-900/50">
-                 <span className="text-sm sm:text-[10px] text-pink-600 dark:text-pink-400 uppercase font-bold tracking-widest block mb-1 text-center">Sugars</span>
-                 <div className="text-xl font-black text-center text-pink-700 dark:text-pink-300">{selectedDayData.sugars.toFixed(1)}g</div>
-                 <div className="text-sm sm:text-xs text-center text-pink-500 font-bold mt-1">{getGoalPercentage(selectedDayData.sugars, goals?.daily_sugars_total_goal_g) ?? '—'}%</div>
-               </div>
-            </div>
-
-            <div className="mt-10 flex flex-col gap-4">
-              <span className="text-xs sm:text-[10px] text-zinc-400 uppercase font-black tracking-widest pl-1">Meals Breakdown</span>
-              <div className="flex flex-col gap-3">
-                {allMeals
-                  .filter(m => new Date(m.created_at).toLocaleDateString() === selectedDate)
-                  .map((meal, idx) => (
-                    <div key={idx} className="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 p-5 rounded-[2rem] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow">
-                      <div className="flex flex-col">
-                        <div className="flex items-center gap-3 mb-1.5">
-                          <span className="px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-[11px] font-black uppercase tracking-widest rounded-full text-zinc-500">{meal.type}</span>
-                          <h5 className="text-lg font-black text-zinc-800 dark:text-zinc-200">{meal.name}</h5>
-                        </div>
-                        <div className="grid grid-cols-5 gap-2 sm:gap-6 mt-4">
-                          <div className="flex flex-col"><span className="text-xs sm:text-[10px] text-indigo-500 uppercase font-black tracking-widest mb-1">P</span><span className="text-sm font-black text-zinc-900 dark:text-white">{meal.total_protein.toFixed(1)}g</span></div>
-                          <div className="flex flex-col"><span className="text-xs sm:text-[10px] text-emerald-500 uppercase font-black tracking-widest mb-1">Fib</span><span className="text-sm font-black text-zinc-900 dark:text-white">{meal.total_fiber.toFixed(1)}g</span></div>
-                          <div className="flex flex-col"><span className="text-xs sm:text-[10px] text-amber-500 uppercase font-black tracking-widest mb-1">C</span><span className="text-sm font-black text-zinc-900 dark:text-white">{meal.total_carbs.toFixed(1)}g</span></div>
-                          <div className="flex flex-col"><span className="text-xs sm:text-[10px] text-orange-500 uppercase font-black tracking-widest mb-1">F</span><span className="text-sm font-black text-zinc-900 dark:text-white">{meal.total_fats.toFixed(1)}g</span></div>
-                          <div className="flex flex-col"><span className="text-xs sm:text-[10px] text-pink-500 uppercase font-black tracking-widest mb-1">S</span><span className="text-sm font-black text-zinc-900 dark:text-white">{meal.total_sugars_total.toFixed(1)}g</span></div>
-                        </div>
-                      </div>
-                      <div className="flex items-end flex-col gap-1">
-                        <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400 leading-none">{meal.total_calories}</span>
-                        <span className="text-[11px] text-zinc-400 font-black uppercase tracking-widest">kcal</span>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 shadow-sm flex flex-col gap-4">
+      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-[2rem] p-6 shadow-sm flex flex-col gap-4 order-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-lg">End-of-day AI Suggestion</h3>
-            <p className="text-xs text-zinc-500">Uses selected day in detail view (defaults to today).</p>
+            <p className="text-xs text-zinc-500">Uses selected day in Activity (defaults to today).</p>
           </div>
           <div className="flex gap-2">
             <button

@@ -92,6 +92,7 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
     _base_sugars_total: Number.isFinite(item.sugars_total) ? item.sugars_total : 0,
   });
   const [items, setItems] = useState<MealItem[]>(() => initialItems.map(withBase));
+  const [numberDrafts, setNumberDrafts] = useState<Record<string, string>>({});
   const [kitchenItems, setKitchenItems] = useState<KitchenItem[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const getKitchenBreakdown = (item: MealItem) => {
@@ -156,6 +157,24 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
     };
 
     setItems(newItems);
+  };
+
+  const getDraftKey = (scope: string, itemIdx: number, extra?: number) =>
+    `${scope}:${itemIdx}${typeof extra === 'number' ? `:${extra}` : ''}`;
+
+  const getDraftValue = (key: string, fallback: number) =>
+    Object.prototype.hasOwnProperty.call(numberDrafts, key) ? numberDrafts[key] : `${fallback}`;
+
+  const handleDraftChange = (key: string, value: string) => {
+    setNumberDrafts((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const clearDraft = (key: string) => {
+    setNumberDrafts((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
   const parseServingFromText = (text?: string): { amount: number; unit: 'g' | 'ml' } | null => {
@@ -639,8 +658,13 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
                           type="number"
                           step="0.1"
                           min="0"
-                          value={item.quantity ?? 0}
-                          onChange={(e) => handleUpdateQuantity(idx, parseFloat(e.target.value) || 0)}
+                          value={getDraftValue(getDraftKey('dishQty', idx), item.quantity ?? 0)}
+                          onChange={(e) => handleDraftChange(getDraftKey('dishQty', idx), e.target.value)}
+                          onBlur={(e) => {
+                            const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
+                            handleUpdateQuantity(idx, Number.isFinite(parsed) ? parsed : 0);
+                            clearDraft(getDraftKey('dishQty', idx));
+                          }}
                           className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
                         />
                       </div>
@@ -682,8 +706,13 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
                                   type="number"
                                   min="0"
                                   step="0.1"
-                                  value={ingredient.quantity}
-                                  onChange={(e) => handleUpdateDishIngredient(idx, ingredientIdx, 'quantity', e.target.value)}
+                                  value={getDraftValue(getDraftKey('dishIngQty', idx, ingredientIdx), ingredient.quantity)}
+                                  onChange={(e) => handleDraftChange(getDraftKey('dishIngQty', idx, ingredientIdx), e.target.value)}
+                                  onBlur={(e) => {
+                                    const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
+                                    handleUpdateDishIngredient(idx, ingredientIdx, 'quantity', `${Number.isFinite(parsed) ? parsed : 0}`);
+                                    clearDraft(getDraftKey('dishIngQty', idx, ingredientIdx));
+                                  }}
                                   className="bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1 text-xs font-bold outline-none w-24"
                                 />
                               ) : (
@@ -692,8 +721,13 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
                                     type="number"
                                     min="0"
                                     step="0.1"
-                                    value={ingredient.weightValue}
-                                    onChange={(e) => handleUpdateDishIngredient(idx, ingredientIdx, 'weightValue', e.target.value)}
+                                    value={getDraftValue(getDraftKey('dishIngWeight', idx, ingredientIdx), ingredient.weightValue)}
+                                    onChange={(e) => handleDraftChange(getDraftKey('dishIngWeight', idx, ingredientIdx), e.target.value)}
+                                    onBlur={(e) => {
+                                      const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
+                                      handleUpdateDishIngredient(idx, ingredientIdx, 'weightValue', `${Number.isFinite(parsed) ? parsed : 0}`);
+                                      clearDraft(getDraftKey('dishIngWeight', idx, ingredientIdx));
+                                    }}
                                     className="bg-zinc-100 dark:bg-zinc-800 rounded-lg px-2 py-1 text-xs font-bold outline-none w-20"
                                   />
                                   <select
@@ -719,8 +753,13 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
                           type="number"
                           step="0.1"
                           min="0"
-                          value={item.quantity ?? 0}
-                          onChange={(e) => handleUpdateQuantity(idx, parseFloat(e.target.value) || 0)}
+                          value={getDraftValue(getDraftKey('itemQty', idx), item.quantity ?? 0)}
+                          onChange={(e) => handleDraftChange(getDraftKey('itemQty', idx), e.target.value)}
+                          onBlur={(e) => {
+                            const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
+                            handleUpdateQuantity(idx, Number.isFinite(parsed) ? parsed : 0);
+                            clearDraft(getDraftKey('itemQty', idx));
+                          }}
                           className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
                         />
                       </div>

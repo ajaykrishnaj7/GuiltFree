@@ -102,6 +102,7 @@ export default function MealLogger() {
   const [dishDrafts, setDishDrafts] = useState<DishDraft[]>([{ id: `dish-${Date.now()}`, name: 'Dish 1', ingredients: [] }]);
   const [dishSearch, setDishSearch] = useState<Record<string, string>>({});
   const [dishInputDrafts, setDishInputDrafts] = useState<Record<string, string>>({});
+  const [itemQtyDrafts, setItemQtyDrafts] = useState<Record<string, string>>({});
 
 
   const handleManualSubmit = () => {
@@ -783,7 +784,34 @@ export default function MealLogger() {
     setDishDrafts([{ id: `dish-${Date.now()}`, name: 'Dish 1', ingredients: [] }]);
     setDishSearch({});
     setDishInputDrafts({});
+    setItemQtyDrafts({});
 
+  };
+
+  const getItemQtyKey = (mealIdx: number, itemIdx: number) => `${mealIdx}:${itemIdx}`;
+
+  const getItemQtyInputValue = (mealIdx: number, itemIdx: number, fallback: number) => {
+    const key = getItemQtyKey(mealIdx, itemIdx);
+    if (Object.prototype.hasOwnProperty.call(itemQtyDrafts, key)) return itemQtyDrafts[key];
+    return `${fallback}`;
+  };
+
+  const handleItemQtyDraftChange = (mealIdx: number, itemIdx: number, value: string) => {
+    const key = getItemQtyKey(mealIdx, itemIdx);
+    setItemQtyDrafts(prev => ({ ...prev, [key]: value }));
+  };
+
+  const commitItemQtyDraft = (mealIdx: number, itemIdx: number, rawValue: string) => {
+    const key = getItemQtyKey(mealIdx, itemIdx);
+    const trimmed = rawValue.trim();
+    const parsed = trimmed === '' ? 0 : parseFloat(trimmed);
+    const committed = Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+    updateItemQuantity(mealIdx, itemIdx, committed);
+    setItemQtyDrafts(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
   };
 
 
@@ -1234,13 +1262,16 @@ export default function MealLogger() {
                           <div className="flex items-center gap-2 mt-1">
                             <div className="flex items-center bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 border border-zinc-200/50 dark:border-zinc-700/50">
                               <button 
-                                onClick={() => updateItemQuantity(mIdx, i, Math.max(1, item.quantity - 1))}
+                                onClick={() => updateItemQuantity(mIdx, i, Math.max(0, item.quantity - 1))}
                                 className="px-3 py-2 min-h-[40px] text-base sm:text-xs font-bold hover:bg-white dark:hover:bg-zinc-700 rounded-md transition-colors"
                               >-</button>
                               <input 
                                 type="number"
-                                value={item.quantity}
-                                onChange={(e) => updateItemQuantity(mIdx, i, parseFloat(e.target.value) || 1)}
+                                min={0}
+                                step={0.1}
+                                value={getItemQtyInputValue(mIdx, i, item.quantity)}
+                                onChange={(e) => handleItemQtyDraftChange(mIdx, i, e.target.value)}
+                                onBlur={(e) => commitItemQtyDraft(mIdx, i, e.target.value)}
                                 className="w-20 sm:w-14 min-h-[40px] bg-transparent text-center text-base sm:text-xs font-black outline-none"
                               />
                               <button 

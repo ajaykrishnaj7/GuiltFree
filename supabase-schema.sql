@@ -225,3 +225,29 @@ CREATE POLICY "Users can view their own AI settings"
 CREATE POLICY "Users can manage their own AI settings"
   ON user_ai_settings FOR ALL
   USING (auth.uid() = user_id);
+
+-- =========================
+-- FEATURE: GOAL MEASUREMENTS
+-- =========================
+CREATE TABLE goal_measurements (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL DEFAULT CURRENT_DATE,
+  metric_type TEXT NOT NULL,
+  value FLOAT NOT NULL,
+  unit TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX goal_measurements_user_id_metric_idx ON goal_measurements (user_id, metric_type);
+
+ALTER TABLE goal_measurements ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own goal measurements"
+  ON goal_measurements FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can manage their own goal measurements"
+  ON goal_measurements FOR ALL
+  USING (auth.uid() = user_id);

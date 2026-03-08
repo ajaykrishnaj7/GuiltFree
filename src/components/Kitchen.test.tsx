@@ -148,7 +148,7 @@ describe('Kitchen', () => {
   });
 
   // ===== URL MODE TESTS (Temporarily Disabled) =====
-  it.skip('shows URL input when URL tab is selected', async () => {
+  it('shows URL input when URL tab is selected', async () => {
     render(<Kitchen isOpen={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByText('The Kitchen'));
     fireEvent.click(screen.getByText('Add Item'));
@@ -156,7 +156,7 @@ describe('Kitchen', () => {
     expect(screen.getByPlaceholderText(/Paste nutrition URL/i)).toBeInTheDocument();
   });
 
-  it.skip('parses URL and fills form on import', async () => {
+  it('parses URL and fills form on import', async () => {
     render(<Kitchen isOpen={true} onClose={mockOnClose} />);
     await waitFor(() => screen.getByText('The Kitchen'));
     
@@ -172,7 +172,7 @@ describe('Kitchen', () => {
     });
   });
 
-  it.skip('handles URL parse error', async () => {
+  it('handles URL parse error', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: false,
       json: () => Promise.resolve({ error: 'Parse failed' }),

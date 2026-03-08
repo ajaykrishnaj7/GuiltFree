@@ -415,14 +415,12 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                   >
                     Manual
                   </button>
-                  {/*
                   <button 
                     onClick={() => setAddMode('url')}
-                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${addMode === 'url' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}
+                    className={`hidden px-3 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${addMode === 'url' ? 'bg-white dark:bg-zinc-700 shadow-sm' : 'text-zinc-500'}`}
                   >
                     URL
                   </button>
-                  */}
                   <button 
                     onClick={() => setAddMode('recipe')}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 whitespace-nowrap ${addMode === 'recipe' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-100 shadow-sm' : 'text-zinc-500'}`}
@@ -597,7 +595,7 @@ export default function Kitchen({ isOpen, onClose, isPage = false }: KitchenProp
                     </div>
                   )}
                 </>
-              ) : false /* addMode === 'url' */ ? (
+              ) : addMode === 'url' ? (
                 <div className="space-y-4">
                   <div className="relative">
                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
