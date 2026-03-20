@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './AuthProvider';
-import { Calendar, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Utensils, Clock, Loader2, Target, Zap, X, Trash2, Edit2 } from 'lucide-react';
+import { Calendar, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight, Utensils, Clock, Loader2, Target, Zap, X, Trash2, Edit2, Download } from 'lucide-react';
 import EditMealModal from './EditMealModal';
 
 interface Meal {
@@ -69,6 +69,10 @@ export default function DiaryView() {
   defaultStartObj.setDate(defaultStartObj.getDate() - 30);
   const [filterFrom, setFilterFrom] = useState(defaultStartObj.toLocaleDateString('en-CA'));
   const [filterTo, setFilterTo] = useState(maxFilterDate);
+  const [exportRange, setExportRange] = useState<'week' | 'month' | 'all' | 'custom'>('month');
+  const [exportFrom, setExportFrom] = useState(minFilterDate);
+  const [exportTo, setExportTo] = useState(maxFilterDate);
+  const [isExporting, setIsExporting] = useState(false);
 
   const formatDateRangeLabel = (value: string) => {
     const parsed = new Date(`${value}T00:00:00`);
@@ -111,6 +115,73 @@ export default function DiaryView() {
     if (value < minFilterDate) return minFilterDate;
     if (value > maxFilterDate) return maxFilterDate;
     return value;
+  };
+
+  const clampExportDate = (value: string) => {
+    if (!value) return minFilterDate;
+    if (value < minFilterDate) return minFilterDate;
+    if (value > maxFilterDate) return maxFilterDate;
+    return value;
+  };
+
+  const handleDownloadCsv = async () => {
+    if (!user) return;
+    setIsExporting(true);
+    try {
+      let from = exportFrom;
+      let to = exportTo;
+      if (exportRange === 'custom') {
+        from = clampExportDate(from);
+        to = clampExportDate(to);
+        if (to < from) {
+          const t = from;
+          from = to;
+          to = t;
+        }
+      }
+
+      const params = new URLSearchParams({ range: exportRange });
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) params.set('tz', tz);
+      if (exportRange === 'custom') {
+        params.set('from', from);
+        params.set('to', to);
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        alert('Please sign in again to export your data.');
+        setIsExporting(false);
+        return;
+      }
+
+      const res = await fetch(`/api/export/meals?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Export failed' }));
+        throw new Error(data.error || 'Export failed');
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match?.[1] || 'guiltfree_meals_export.csv';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : 'Failed to export CSV');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const finalizeDelete = async (mealToDelete: Meal) => {
@@ -467,6 +538,72 @@ export default function DiaryView() {
           <p className="text-sm sm:text-[11px] text-zinc-400 font-medium">
             Filter supports only the last 180 days.
           </p>
+          <div className="pt-3 border-t border-zinc-100 dark:border-zinc-800 flex flex-col gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label className="text-xs sm:text-[10px] font-bold uppercase tracking-widest text-zinc-400">Download CSV</label>
+              <span className="text-xs text-zinc-500">Meals + item-level macros</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select
+                value={exportRange}
+                onChange={(e) => setExportRange(e.target.value as 'week' | 'month' | 'all' | 'custom')}
+                className="px-3 py-2.5 min-h-[44px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-base sm:text-sm font-semibold"
+              >
+                <option value="week">This Week</option>
+                <option value="month">This Month</option>
+                <option value="all">All Time</option>
+                <option value="custom">Custom (From/To)</option>
+              </select>
+              <button
+                type="button"
+                onClick={() => void handleDownloadCsv()}
+                disabled={isExporting}
+                className="px-4 py-2.5 min-h-[44px] rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isExporting ? 'Exporting...' : 'Download CSV'}
+              </button>
+            </div>
+            {exportRange === 'custom' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs sm:text-[10px] font-bold uppercase tracking-widest text-zinc-400">From</label>
+                  <input
+                    type="date"
+                    min={minFilterDate}
+                    max={maxFilterDate}
+                    value={exportFrom}
+                    onChange={(e) => {
+                      const next = clampExportDate(e.target.value);
+                      setExportFrom(next);
+                      if (next > exportTo) setExportTo(next);
+                    }}
+                    className="px-3 py-2.5 min-h-[44px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-base sm:text-sm font-semibold"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs sm:text-[10px] font-bold uppercase tracking-widest text-zinc-400">To</label>
+                  <input
+                    type="date"
+                    min={minFilterDate}
+                    max={maxFilterDate}
+                    value={exportTo}
+                    onChange={(e) => {
+                      const next = clampExportDate(e.target.value);
+                      setExportTo(next);
+                      if (next < exportFrom) setExportFrom(next);
+                    }}
+                    className="px-3 py-2.5 min-h-[44px] bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:border-indigo-500 text-base sm:text-sm font-semibold"
+                  />
+                </div>
+              </div>
+            )}
+            {exportRange === 'custom' && (
+              <p className="text-xs text-zinc-500">
+                Custom export supports only the last 180 days.
+              </p>
+            )}
+          </div>
         </div>
 
         {meals.length === 0 ? (

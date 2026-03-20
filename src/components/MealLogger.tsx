@@ -98,11 +98,13 @@ export default function MealLogger() {
     sugars: 0,
     description: ''
   });
+  const [manualMealNameFocused, setManualMealNameFocused] = useState(false);
   const [manualEntryMode, setManualEntryMode] = useState<'quick' | 'kitchen'>('quick');
   const [dishDrafts, setDishDrafts] = useState<DishDraft[]>([{ id: `dish-${Date.now()}`, name: 'Dish 1', ingredients: [] }]);
   const [dishSearch, setDishSearch] = useState<Record<string, string>>({});
   const [dishInputDrafts, setDishInputDrafts] = useState<Record<string, string>>({});
   const [itemQtyDrafts, setItemQtyDrafts] = useState<Record<string, string>>({});
+  const [activeDishSearchId, setActiveDishSearchId] = useState<string | null>(null);
 
 
   const handleManualSubmit = () => {
@@ -424,6 +426,23 @@ export default function MealLogger() {
   useEffect(() => {
     // Focus input on mount
     inputRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('[data-manual-meal-name-scope="true"]')) {
+        setManualMealNameFocused(false);
+      }
+      if (!target?.closest('[data-dish-search-scope="true"]')) {
+        setActiveDishSearchId(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
   }, []);
 
   useEffect(() => {
@@ -884,6 +903,7 @@ export default function MealLogger() {
                   {suggestions.slice(0, 5).map((item) => (
                     <button
                       key={item.id}
+                      type="button"
                       onClick={() => handlePickKitchenItem(item)}
                       className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-left transition-colors border-b border-zinc-50 dark:border-zinc-800/50 last:border-0"
                     >
@@ -901,7 +921,7 @@ export default function MealLogger() {
         ) : (
           <div className="bg-white dark:bg-zinc-900 border-2 border-zinc-100 dark:border-zinc-800 rounded-3xl p-6 shadow-sm flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="grid grid-cols-2 gap-4">
-              <div className="flex flex-col gap-1.5 relative">
+              <div className="flex flex-col gap-1.5 relative" data-manual-meal-name-scope="true">
                 <label className="px-1 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Meal Name</label>
                 <input 
                   type="text" 
@@ -909,9 +929,10 @@ export default function MealLogger() {
                   className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-indigo-500"
                   value={manualData.meal_name}
                   onChange={(e) => setManualData({ ...manualData, meal_name: e.target.value })}
+                  onFocus={() => setManualMealNameFocused(true)}
                 />
                 
-                {isManual && suggestions.length > 0 && (
+                {isManual && manualMealNameFocused && suggestions.length > 0 && (
                   <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200 mx-1">
                     <div className="flex flex-col">
                       {suggestions.slice(0, 5).map((item) => (
@@ -1056,15 +1077,19 @@ export default function MealLogger() {
                         </button>
                       </div>
 
-                      <div className="relative">
+                      <div className="relative" data-dish-search-scope="true">
                         <input
                           type="text"
                           value={query}
-                          onChange={(e) => setDishSearch(prev => ({ ...prev, [dish.id]: e.target.value }))}
+                          onChange={(e) => {
+                            setDishSearch(prev => ({ ...prev, [dish.id]: e.target.value }));
+                            setActiveDishSearchId(dish.id);
+                          }}
+                          onFocus={() => setActiveDishSearchId(dish.id)}
                           placeholder="Search kitchen items for this dish..."
                           className="w-full bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl px-3 py-3 min-h-[46px] text-base sm:text-sm outline-none focus:border-indigo-500"
                         />
-                        {dishSuggestions.length > 0 && (
+                        {activeDishSearchId === dish.id && dishSuggestions.length > 0 && (
                           <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden shadow-lg">
                             {dishSuggestions.map((item) => (
                               <button

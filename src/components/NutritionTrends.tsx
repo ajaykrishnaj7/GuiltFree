@@ -338,14 +338,55 @@ export default function NutritionTrends() {
     return Math.round((value / goal) * 100);
   };
 
-  const getActivityPeriodDays = (period: 'D' | 'W' | 'M' | '3M' | '6M' | '9M' | 'Y') => {
-    if (period === 'D') return 1;
-    if (period === 'W') return 7;
-    if (period === 'M') return 30;
-    if (period === '3M') return 90;
-    if (period === '6M') return 180;
-    if (period === '9M') return 270;
-    return 365;
+  const buildActivityPeriodStats = (period: 'D' | 'W' | 'M' | '3M' | '6M' | '9M' | 'Y') => {
+    const byDate = new Map(stats.map((entry) => [entry.date, entry]));
+    const now = new Date();
+    const days: DailyStats[] = [];
+
+    const pushDay = (dateObj: Date) => {
+      const key = dateObj.toLocaleDateString();
+      const existing = byDate.get(key);
+      days.push(existing || {
+        date: key,
+        calories: 0,
+        protein: 0,
+        fiber: 0,
+        carbs: 0,
+        fats: 0,
+        sugars: 0,
+      });
+    };
+
+    if (period === 'D') {
+      pushDay(now);
+      return days;
+    }
+
+    if (period === 'W') {
+      const start = new Date(now);
+      const dayOfWeek = start.getDay(); // Sun=0
+      start.setDate(start.getDate() - dayOfWeek);
+      for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+        pushDay(new Date(d));
+      }
+      return days;
+    }
+
+    if (period === 'M') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+        pushDay(new Date(d));
+      }
+      return days;
+    }
+
+    const lookbackDays = period === '3M' ? 90 : period === '6M' ? 180 : period === '9M' ? 270 : 365;
+    const start = new Date(now);
+    start.setDate(start.getDate() - (lookbackDays - 1));
+    for (let d = new Date(start); d <= now; d.setDate(d.getDate() + 1)) {
+      pushDay(new Date(d));
+    }
+    return days;
   };
 
   if (authLoading || loading) {
@@ -372,8 +413,7 @@ export default function NutritionTrends() {
 
   const weeklyAvg = getAverages(7);
   const monthlyAvg = getAverages(30);
-  const activityDays = getActivityPeriodDays(activityPeriod);
-  const activityStats = stats.slice(-activityDays);
+  const activityStats = buildActivityPeriodStats(activityPeriod);
   const activityAverages = activityStats.length > 0
     ? activityStats.reduce((acc, day) => ({
       calories: acc.calories + day.calories,

@@ -25,6 +25,8 @@ interface MealItem {
   _base_fiber?: number;
   _base_sugars_total?: number;
   _dish_ingredients?: DishIngredientEdit[];
+  _sourceMode?: 'manual' | 'kitchen';
+  _kitchenQuery?: string;
 }
 
 interface KitchenItem {
@@ -452,8 +454,49 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const setItemSourceMode = (index: number, mode: 'manual' | 'kitchen') => {
+    setItems((prev) => prev.map((item, i) => (
+      i === index ? { ...item, _sourceMode: mode } : item
+    )));
+  };
+
+  const setItemKitchenQuery = (index: number, query: string) => {
+    setItems((prev) => prev.map((item, i) => (
+      i === index ? { ...item, _kitchenQuery: query } : item
+    )));
+  };
+
+  const applyKitchenItemToRow = (index: number, kitchen: KitchenItem) => {
+    setItems((prev) => prev.map((item, i) => {
+      if (i !== index) return item;
+      return {
+        ...item,
+        name: kitchen.name,
+        display_name: kitchen.name,
+        unit: 'serving',
+        quantity: 1,
+        calories: kitchen.calories || 0,
+        protein: kitchen.protein || 0,
+        carbs: kitchen.carbs || 0,
+        fats_total: kitchen.fats_total || 0,
+        fiber: kitchen.fiber || 0,
+        sugars_total: kitchen.sugars_total || 0,
+        rationale: 'From your kitchen',
+        _base_qty: 1,
+        _base_calories: kitchen.calories || 0,
+        _base_protein: kitchen.protein || 0,
+        _base_carbs: kitchen.carbs || 0,
+        _base_fats_total: kitchen.fats_total || 0,
+        _base_fiber: kitchen.fiber || 0,
+        _base_sugars_total: kitchen.sugars_total || 0,
+        _sourceMode: 'kitchen',
+        _kitchenQuery: ''
+      };
+    }));
+  };
+
   const handleAddItem = () => {
-    setItems([...items, {
+    setItems([{
       name: 'New Item',
       display_name: 'New Item',
       quantity: 1,
@@ -471,8 +514,10 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
       _base_carbs: 0,
       _base_fats_total: 0,
       _base_fiber: 0,
-      _base_sugars_total: 0
-    }]);
+      _base_sugars_total: 0,
+      _sourceMode: 'kitchen',
+      _kitchenQuery: ''
+    }, ...items]);
   };
 
   const handleSave = async () => {
@@ -746,31 +791,86 @@ export default function EditMealModal({ meal, items: initialItems, onClose, onSa
                       )}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 opacity-70">Qty</span>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={getDraftValue(getDraftKey('itemQty', idx), item.quantity ?? 0)}
-                          onChange={(e) => handleDraftChange(getDraftKey('itemQty', idx), e.target.value)}
-                          onBlur={(e) => {
-                            const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
-                            handleUpdateQuantity(idx, Number.isFinite(parsed) ? parsed : 0);
-                            clearDraft(getDraftKey('itemQty', idx));
-                          }}
-                          className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
-                        />
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setItemSourceMode(idx, 'manual')}
+                          className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${(item._sourceMode ?? 'manual') === 'manual' ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}
+                        >
+                          Manual
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setItemSourceMode(idx, 'kitchen')}
+                          className={`px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${(item._sourceMode ?? 'manual') === 'kitchen' ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500'}`}
+                        >
+                          Kitchen Item
+                        </button>
                       </div>
-                      <div className="flex flex-col gap-1.5">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 opacity-70">Unit</span>
-                        <input
-                          type="text"
-                          value={item.unit || ''}
-                          onChange={(e) => handleUpdateItem(idx, 'unit', e.target.value)}
-                          className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
-                        />
+
+                      {(item._sourceMode ?? 'manual') === 'kitchen' && (
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={item._kitchenQuery || ''}
+                            onChange={(e) => setItemKitchenQuery(idx, e.target.value)}
+                            onBlur={() => {
+                              window.setTimeout(() => {
+                                setItemKitchenQuery(idx, '');
+                              }, 120);
+                            }}
+                            placeholder="Search kitchen items..."
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
+                          />
+                          {(item._kitchenQuery || '').trim().length > 1 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 rounded-xl overflow-hidden shadow-lg">
+                              {kitchenItems
+                                .filter((k) => k.name.toLowerCase().includes((item._kitchenQuery || '').toLowerCase()))
+                                .slice(0, 8)
+                                .map((k) => (
+                                  <button
+                                    key={k.id}
+                                    type="button"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={() => applyKitchenItemToRow(idx, k)}
+                                    className="w-full px-3 py-2 text-left text-xs font-semibold hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center justify-between border-b border-zinc-100 dark:border-zinc-800 last:border-0"
+                                  >
+                                    <span>{k.name}</span>
+                                    <span className="text-zinc-400">{k.calories} kcal</span>
+                                  </button>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 opacity-70">Qty</span>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            value={getDraftValue(getDraftKey('itemQty', idx), item.quantity ?? 0)}
+                            onChange={(e) => handleDraftChange(getDraftKey('itemQty', idx), e.target.value)}
+                            onBlur={(e) => {
+                              const parsed = e.target.value.trim() === '' ? 0 : parseFloat(e.target.value);
+                              handleUpdateQuantity(idx, Number.isFinite(parsed) ? parsed : 0);
+                              clearDraft(getDraftKey('itemQty', idx));
+                            }}
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
+                          />
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500 opacity-70">Unit</span>
+                          <input
+                            type="text"
+                            value={item.unit || ''}
+                            onChange={(e) => handleUpdateItem(idx, 'unit', e.target.value)}
+                            className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 rounded-lg px-3 py-2 text-sm font-bold text-zinc-900 dark:text-white outline-none focus:border-indigo-500 transition-all"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}
