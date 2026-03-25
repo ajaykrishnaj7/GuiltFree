@@ -625,6 +625,7 @@ describe('MealLogger', () => {
     if (manualToggle) fireEvent.click(manualToggle);
     
     const input = screen.getByPlaceholderText(/e.g. Scrambled Eggs/i);
+    fireEvent.focus(input);
     fireEvent.change(input, { target: { value: 'Chi' } });
     
     const suggestion = await screen.findByText('Chicken Breast');
