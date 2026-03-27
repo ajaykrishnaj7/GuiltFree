@@ -63,6 +63,9 @@ const createMockChain = (data: any = [], error: any = null) => {
 jest.mock('@/lib/supabase', () => ({
   supabase: {
     from: jest.fn(),
+    auth: {
+      getSession: jest.fn(),
+    },
   },
 }));
 
@@ -121,6 +124,12 @@ describe('DiaryView', () => {
       if (table === 'meal_items') return createMockChain(mockItems);
       return createMockChain();
     });
+    (supabase.auth.getSession as jest.Mock).mockResolvedValue({
+      data: { session: { access_token: 'token-123' } },
+    });
+    global.fetch = jest.fn();
+    global.URL.createObjectURL = jest.fn(() => 'blob:mock');
+    global.URL.revokeObjectURL = jest.fn();
   });
 
   it('renders loading state when auth is loading', () => {
@@ -296,9 +305,61 @@ describe('DiaryView', () => {
     fireEvent.click(screen.getByLabelText('Next page'));
     await screen.findByText('2/3');
 
-    const perPageSelect = document.querySelector('select') as HTMLSelectElement;
+    const perPageSelect = screen.getByDisplayValue('10') as HTMLSelectElement;
     fireEvent.change(perPageSelect, { target: { value: '50' } });
     await screen.findByText('1/1');
+  });
+
+  it('downloads csv export for custom range', async () => {
+    const appendSpy = jest.spyOn(document.body, 'appendChild');
+    const removeSpy = jest.spyOn(HTMLAnchorElement.prototype, 'remove').mockImplementation(() => {});
+    const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      blob: jest.fn().mockResolvedValue(new Blob(['csv'], { type: 'text/csv' })),
+      headers: {
+        get: (name: string) =>
+          name === 'Content-Disposition' ? 'attachment; filename="guiltfree_meals_2026-03-01_to_2026-03-10.csv"' : null,
+      },
+    });
+
+    render(<DiaryView />);
+    await screen.findByRole('heading', { name: 'Lunch' });
+
+    fireEvent.change(screen.getByDisplayValue('This Month'), { target: { value: 'custom' } });
+
+    const exportDateInputs = Array.from(document.querySelectorAll('input[type="date"]')).slice(-2) as HTMLInputElement[];
+    fireEvent.change(exportDateInputs[0], { target: { value: '2026-03-01' } });
+    fireEvent.change(exportDateInputs[1], { target: { value: '2026-03-10' } });
+    fireEvent.click(screen.getByRole('button', { name: /Download CSV/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/export/meals?'),
+        expect.objectContaining({
+          headers: { Authorization: 'Bearer token-123' },
+        })
+      );
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('range=custom'),
+      expect.any(Object)
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('from=2026-03-01'),
+      expect.any(Object)
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('to=2026-03-10'),
+      expect.any(Object)
+    );
+    expect(global.URL.createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+
+    appendSpy.mockRestore();
+    removeSpy.mockRestore();
+    clickSpy.mockRestore();
   });
 
   it('clamps date filters and keeps from <= to', async () => {

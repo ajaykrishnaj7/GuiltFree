@@ -1,6 +1,26 @@
 import { GET } from './route';
 import { createSupabaseServerAdminClient, getAuthenticatedUser } from '@/lib/supabaseServer';
 
+class MockResponse {
+  status: number;
+  headers: Headers;
+  private body: string;
+
+  constructor(body: string, init?: { status?: number; headers?: HeadersInit }) {
+    this.status = init?.status ?? 200;
+    this.headers = new Headers(init?.headers);
+    this.body = body;
+  }
+
+  async text() {
+    return this.body;
+  }
+
+  async json() {
+    return JSON.parse(this.body);
+  }
+}
+
 const mockMealsLte = jest.fn();
 const mockMealsOrder = jest.fn();
 const mockItemsIn = jest.fn();
@@ -31,20 +51,16 @@ jest.mock('@/lib/supabaseServer', () => ({
 describe('GET /api/export/meals', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (global as any).Response = MockResponse;
     (getAuthenticatedUser as jest.Mock).mockResolvedValue({ id: 'user-1' });
-
     mockMealsLte.mockResolvedValue(mealsResult);
-
-    mockMealsOrder.mockImplementation(() => {
-      const base = {
-        gte: () => ({
-          lte: mockMealsLte,
-        }),
+    mockMealsOrder.mockImplementation(() => ({
+      gte: jest.fn(() => ({
         lte: mockMealsLte,
-        then: (resolve: (value: typeof mealsResult) => void) => Promise.resolve(resolve(mealsResult)),
-      };
-      return base;
-    });
+      })),
+      lte: mockMealsLte,
+      then: (resolve: (value: typeof mealsResult) => void) => resolve(mealsResult),
+    }));
 
     mockItemsIn.mockResolvedValue({
       data: [
@@ -99,7 +115,7 @@ describe('GET /api/export/meals', () => {
     expect(text).not.toContain('meal_id,');
     expect(text).not.toContain('item_display_name');
     expect(text).toContain('Lunch Bowl');
-    expect(text).toContain('Rice');
+    expect(text).toContain('rice');
     expect(text).toContain('EST');
   });
 
